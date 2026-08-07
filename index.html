@@ -13,9 +13,6 @@
     @import url(https://fonts.googleapis.com/earlyaccess/nanummyeongjo.css);
     @import url(https://fonts.googleapis.com/css?family=Droid+Serif);
 
-    /* =========================================================
-       1. Global & Common
-       ========================================================= */
     * { margin:0; padding:0; line-height:140%; color:#555553; box-sizing: border-box; cursor: none !important; }
     ul { list-style:none; }
     body { font-size: 9pt; color: #999; font-family: '나눔명조', 'Nanum Myeongjo', serif; background: #ffffff; min-height: 100vh; overflow-x: hidden; }
@@ -29,7 +26,6 @@
     .eng { font-family:'Droid Serif', serif; letter-spacing:0; }
     .float_clear { clear:both; visibility:hidden; height:1px; }
 
-    /* Custom Cursor */
     .cursor-dot {
       position: fixed; left: 0; top: 0; width: 10px; height: 10px; border-radius: 50%;
       background: #555553; pointer-events: none;
@@ -38,9 +34,6 @@
     }
     .cursor-dot.is-pressed { width: 20px; height: 20px; background: rgba(0,0,0,0.2); mix-blend-mode: normal; border: 1px solid rgba(0,0,0,0.5); }
 
-    /* =========================================================
-       2. Topbar & Main Layout
-       ========================================================= */
     .topbar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 60px; 
       display: flex; align-items: center; justify-content: space-between;
@@ -71,7 +64,6 @@
     #main_image_list li .picture img { max-width: 100%; max-height: 100%; object-fit: contain; border: 0px; transition: opacity 0.2s ease; }
     #main_image_list li:hover .picture img { opacity: 0.85; }
 
-    /* 첫 화면 캡션: 이름과 건축가만 노출 */
     #main_image_list li .caption { position:absolute; top:160px; left:0; display:block; width:100%; text-align:center; }
     #main_image_list li .caption p { margin: 0; font-size: 8pt; color: #999; }
     #main_image_list li .caption p:first-child { color: #555553; font-weight: bold; }
@@ -82,9 +74,6 @@
 
     #copyright { font-size:0.8em; margin-top:60px; margin-right:52px; clear:both; text-align:right; color: #ccc; }
 
-    /* =========================================================
-       3. World Map View
-       ========================================================= */
     .map-view {
       position: fixed; inset: 0; z-index: 250; background: #ffffff;
       transform: translateY(100%); transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
@@ -101,9 +90,6 @@
     .leaflet-popup-content { margin: 10px; font-family: '나눔명조', serif; font-size: 9pt; color: #555553; text-align: center; }
     .leaflet-popup-content img { width: 140px; height: 100px; object-fit: contain; margin-bottom: 6px; display: block; background: #fafafa; }
 
-    /* =========================================================
-       4. Internal Project Gallery
-       ========================================================= */
     .project-view { 
       position: fixed; inset: 0; z-index: 200; background: #ffffff; 
       transform: translateY(100%); transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1); 
@@ -167,9 +153,6 @@
     .gallery-tools button:hover { color: #555553; text-decoration: underline; }
     .delete-slide-btn { color: #d71920 !important; }
 
-    /* =========================================================
-       5. Modals (Add / Edit)
-       ========================================================= */
     .modal-layer { position: fixed; inset: 0; z-index: 1000; background: rgba(255,255,255,0.9); display: none; place-items: center; }
     .modal-layer.is-open { display: grid; }
     .project-modal { width: 440px; background: #fff; padding: 40px; border: 1px solid #ddd; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: grid; gap: 16px; max-height: 90vh; overflow-y: auto; }
@@ -198,7 +181,6 @@
 </head>
 <body class="main">
   <main class="app">
-    <!-- Topbar -->
     <header class="topbar eng">
       <div class="brand">
         <div class="brand-name">ARCHIVE</div>
@@ -207,12 +189,11 @@
         <label class="search"><input id="searchInput" type="search" placeholder="Search..."></label>
         <button class="add-project" id="addProject" type="button">Add Project</button>
         <div class="sync-status" id="syncStatus">
-          <span class="sync-dot" id="syncDot"></span> <span id="syncText">Local Mode</span>
+          <span class="sync-dot" id="syncDot"></span> <span id="syncText">Cloud Storage Sync</span>
         </div>
       </div>
     </header>
 
-    <!-- Main Image List -->
     <div id="wrapper">
       <ul id="main_image_list" class="eng">
         <li class="gateway"><a href="javascript:void(0);" id="openMapBtn" title="World Map">·</a></li>
@@ -223,7 +204,6 @@
       </div>
     </div>
 
-    <!-- World Map View -->
     <section class="map-view" id="mapView" aria-label="world map">
       <header class="map-header eng">
         <div class="brand-name">ARCHIVE // GEOGRAPHY</div>
@@ -232,7 +212,6 @@
       <div id="mapContainer"></div>
     </section>
 
-    <!-- Internal Project Gallery -->
     <section class="project-view" id="galleryView" aria-label="project gallery">
       <div class="inner_wrapper">
         <div class="btn_go_main_wrapper">
@@ -275,7 +254,7 @@
         <form class="project-form" id="projectForm">
           <label class="image-field" id="imageField">
             <span class="image-preview" id="imagePreview"></span>
-            <span>+ Click or Select Main Image</span>
+            <span>+ Click or Paste Main Image (Ctrl+V)</span>
             <input id="mainImageInput" type="file" accept="image/*">
           </label>
           <label class="field">Building Name <input id="buildingNameInput" type="text" placeholder="KANSONG ART MUSEUM" required></label>
@@ -301,7 +280,7 @@
         <form class="project-form" id="editProjectForm">
           <label class="image-field" id="editImageField" style="height: 100px;">
             <span class="image-preview" id="editImagePreview"></span>
-            <span>+ Add Slide Image (Optional)</span>
+            <span>+ Add Slide Image (Optional / Ctrl+V)</span>
             <input id="editSlideImageInput" type="file" accept="image/*">
           </label>
           <label class="field">Building Name <input id="editTitleInput" type="text" required></label>
@@ -358,8 +337,8 @@
       "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=700&q=80"
     ];
 
-    const storageKey = "archive-projects-v14";
-    const currentGroupStorageKey = "archive-current-group-v14";
+    const storageKey = "archive-projects-v15";
+    const currentGroupStorageKey = "archive-current-group-v15";
     const defaultGroupCode = "ARCHIVE-DEMO";
 
     const defaultProjects = [
@@ -408,7 +387,6 @@
       });
     }
 
-    // Firebase Storage에 파일 직접 업로드 후 다운로드 URL 반환
     async function uploadFileToStorage(file) {
       if (!file) return null;
       const storageRef = ref(storage, 'archive_images/' + crypto.randomUUID() + '_' + file.name);
@@ -426,6 +404,31 @@
     const editImageField = document.getElementById("editImageField");
     const editImagePreview = document.getElementById("editImagePreview");
 
+    // 🔥 클립보드 복붙(Ctrl+V)으로 이미지 바로 업로드 지원
+    document.addEventListener("paste", e => {
+      if (e.target.tagName.toLowerCase() === 'textarea' && !editProjectModal.classList.contains("is-open")) return; 
+      if (e.target.tagName.toLowerCase() === 'input') return; 
+
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      let imageFile = null;
+      for (const item of items) { if (item.type.indexOf("image") === 0) { imageFile = item.getAsFile(); break; } }
+      if (!imageFile) return;
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (projectModal.classList.contains("is-open")) {
+          selectedMainImageFile = imageFile;
+          imagePreview.style.backgroundImage = `url("${ev.target.result}")`;
+          imageField.classList.add("has-image");
+        } else if (editProjectModal.classList.contains("is-open")) {
+          selectedSlideImageFile = imageFile;
+          editImagePreview.style.backgroundImage = `url("${ev.target.result}")`;
+          editImageField.classList.add("has-image");
+        }
+      };
+      reader.readAsDataURL(imageFile);
+    });
+
     function loadLocalProjects() { 
       try { const saved = localStorage.getItem(groupProjectKey(currentGroupCode)); return saved ? JSON.parse(saved) : (currentGroupCode === defaultGroupCode ? defaultProjects : []); } 
       catch { return defaultProjects; } 
@@ -441,9 +444,6 @@
     }
     function groupProjectKey(code) { return `${storageKey}:${code}`; }
 
-    // -----------------------------------------------------
-    // 지도 모달 제어
-    // -----------------------------------------------------
     document.getElementById("openMapBtn").addEventListener("click", () => {
       document.body.classList.add("map-mode");
       mapView.classList.add("is-open");
@@ -503,9 +503,6 @@
       });
     }
 
-    // -----------------------------------------------------
-    // 갤러리 슬라이더 로직
-    // -----------------------------------------------------
     function openGallery(project) {
       activeProject = project;
       document.body.classList.replace('main', 'project');
@@ -587,9 +584,6 @@
       }
     });
 
-    // -----------------------------------------------------
-    // Edit Modal 로직
-    // -----------------------------------------------------
     function buttonClick(btn, fn) { btn.addEventListener("click", fn); }
 
     buttonClick(document.getElementById("openEditModalBtn"), () => {
@@ -644,9 +638,6 @@
     buttonClick(document.getElementById("closeEditModalBtn"), () => editProjectModal.classList.remove("is-open"));
     buttonClick(document.getElementById("cancelEditProject"), () => editProjectModal.classList.remove("is-open"));
 
-    // -----------------------------------------------------
-    // 메인 화면 로직
-    // -----------------------------------------------------
     function renderProjects() { 
       const kw = document.getElementById("searchInput").value.trim().toLowerCase();
       

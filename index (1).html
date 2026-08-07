@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TRACE Archive Board</title>
+  
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+  <style>
+    :root {
+      --ink: #242424;
+      --muted: #7b7f84;
+      --line: #d7d7d7;
+      --paper: #f7f7f5;
+      --mist: #dedede;
+      --accent: #121212;
+      --shadow: 0 18px 44px rgba(0, 0, 0, .12);
+    }
+
+    * { box-sizing: border-box; cursor: none !important; }
+
+    body {
+      margin: 0; min-height: 100vh; overflow: hidden;
+      background: #d9d9d7; color: var(--ink);
+      font-family: Pretendard, "Noto Sans KR", "Noto Sans", Arial, Helvetica, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button, input, textarea, select { font: inherit; }
+    button { border: 0; background: transparent; color: inherit; }
+
+    .cursor-dot {
+      position: fixed; left: 0; top: 0; width: 14px; height: 14px; border-radius: 50%;
+      background: #fff; border: 1px solid rgba(0,0,0,.22); pointer-events: none;
+      transform: translate(-50%, -50%); z-index: 1000; mix-blend-mode: normal;
+      box-shadow: 0 2px 10px rgba(0,0,0,.10);
+      transition: width 180ms cubic-bezier(.2, 1.7, .35, 1), height 180ms cubic-bezier(.2, 1.7, .35, 1), border-color 180ms ease;
+    }
+    .cursor-dot.is-pressed, .cursor-dot.is-zooming { width: 22px; height: 22px; border-color: rgba(0,0,0,.12); }
+    .click-ripple {
+      position: fixed; width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,.18);
+      background: rgba(255,255,255,.24); pointer-events: none; transform: translate(-50%, -50%) scale(1);
+      z-index: 999; animation: ripple 700ms cubic-bezier(.16, 1.25, .38, 1) forwards;
+    }
+    @keyframes ripple { to { opacity: 0; transform: translate(-50%, -50%) scale(5.8); } }
+
+    .app { position: relative; width: 100vw; height: 100vh; }
+    .guide-x, .guide-y { position: fixed; pointer-events: none; opacity: .5; z-index: 1; }
+    .guide-x { left: 0; right: 0; top: 50%; border-top: 1px dashed #8e8e8e; }
+    .guide-y { top: 0; bottom: 0; left: 66%; border-left: 1px dashed #9c9c9c; }
+
+    .side-panel {
+      position: fixed; top: 8.8vh; left: 0; width: min(34vw, 360px); height: 84vh;
+      background: #2b2b2b; transform: translateX(calc(-100% + 16px));
+      transition: transform 520ms cubic-bezier(.2, .9, .2, 1); z-index: 5; box-shadow: var(--shadow);
+    }
+    .side-panel.is-open { transform: translateX(0); }
+    .panel-tab {
+      position: absolute; top: 45%; right: -21px; width: 24px; height: 58px;
+      background: #050505; clip-path: polygon(0 0, 100% 50%, 0 100%); display: grid;
+      place-items: center; color: #fff; transition: transform 420ms cubic-bezier(.2, .9, .2, 1);
+    }
+    .side-panel.is-open .panel-tab { transform: rotate(180deg); }
+
+    .panel-inner { height: 100%; padding: 28px 24px 22px; color: #ececec; display: flex; flex-direction: column; justify-content: space-between; gap: 22px; overflow: auto; }
+    .panel-title { font-size: 12px; color: #a9a9a9; text-transform: uppercase; letter-spacing: .12em; }
+    .panel-list { display: grid; gap: 10px; margin-top: 28px; font-size: 13px; }
+    .panel-list button { width: 100%; padding: 10px 0; color: #f3f3f3; text-align: left; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .panel-list button.is-active { color: #fff; border-bottom-color: rgba(255,255,255,.55); }
+    
+    .panel-window { display: none; border-top: 1px solid rgba(255,255,255,.18); padding-top: 18px; color: #dbdbdb; }
+    .panel-window.is-open { display: grid; gap: 14px; }
+    .panel-window h2 { margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
+    .panel-window p { margin: 0; color: #bdbdbd; font-size: 12px; line-height: 1.65; }
+
+    .category-list, .group-actions button { width: 100%; border: 1px solid rgba(255,255,255,.16); padding: 9px 10px; color: #f2f2f2; background: rgba(255,255,255,.04); text-align: left; font-size: 12px; }
+    .category-list { display: grid; gap: 7px; padding:0; border:0; background:transparent;}
+    .category-list button { width: 100%; border: 1px solid rgba(255,255,255,.16); padding: 9px 10px; color: #f2f2f2; background: rgba(255,255,255,.04); text-align: left; font-size: 12px; }
+    .category-list button.is-active { background: rgba(255,255,255,.14); }
+    .group-actions button:disabled { cursor: not-allowed; opacity: .42; }
+
+    .panel-form { display: grid; gap: 9px; }
+    .panel-form label { display: grid; gap: 5px; color: #9f9f9f; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    .panel-form input { height: 34px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08); padding: 0 9px; outline: none; color: #fff; }
+    .verify-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .verify-row input, .verify-row button { height: 34px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08); color: #fff; font-size: 11px; }
+    .verify-row input { padding: 0 9px; outline: none; }
+    .verify-row button { font-weight: 700; }
+    .verify-status { min-height: 30px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: #bdbdbd; font-size: 10px; line-height: 1.35; }
+    .verify-status.is-ok { color: #9be0bb; border-color: rgba(155,224,187,.28); background: rgba(80,180,120,.12); }
+    .verify-status.is-error { color: #ffb1b6; border-color: rgba(255,177,182,.28); background: rgba(215,25,32,.12); }
+    .group-code { min-height: 34px; display: grid; place-items: center start; padding: 8px 10px; background: #f2f2ee; color: #1f1f1f; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+
+    .shell { width: 100vw; height: 100vh; min-width: 0; background: var(--paper); position: relative; z-index: 2; overflow: hidden; display: flex; flex-direction: column; }
+    .topbar { height: 66px; display: grid; grid-template-columns: repeat(auto-fill, 156px); align-items: start; column-gap: 18px; padding: 16px 41px 0 26px; border-bottom: 1px solid #e8e8e8; }
+    .brand { display: flex; gap: 10px; align-items: flex-start; min-width: 0; grid-column: 1; }
+    .trace-mark { position: relative; width: 30px; height: 28px; flex: 0 0 auto; margin-top: 1px; }
+    .trace-mark::before, .trace-mark::after, .trace-mark span { content: ""; position: absolute; width: 17px; height: 17px; background: #1f1f1f; }
+    .trace-mark::before { left: 0; top: 0; } .trace-mark span { left: 6px; top: 5px; opacity: .62; } .trace-mark::after { left: 12px; top: 10px; opacity: .34; }
+    .brand-copy { display: grid; gap: 3px; padding-top: 1px; }
+    .brand-name { font-size: 18px; line-height: 1; letter-spacing: .42em; font-weight: 400; color: #292929; }
+    .brand-caption { font-size: 8px; color: #505050; white-space: nowrap; }
+
+    .search-row { display: grid; gap: 6px; align-content: start; justify-items: stretch; grid-column: 2 / -1; }
+    .search { height: 34px; border: 1px solid #bcbcbc; border-radius: 5px; display: flex; align-items: center; gap: 9px; padding: 0 10px; background: #fff; }
+    .search-icon { width: 16px; height: 16px; border: 2px solid #1f1f1f; border-radius: 50%; position: relative; flex: 0 0 auto; }
+    .search input { width: 100%; border: 0; outline: 0; color: #515151; background: transparent; font-size: 13px; text-transform: uppercase; }
+    .add-project { justify-self: end; display: inline-flex; align-items: center; gap: 4px; padding: 0; transform: translateY(-4px); color: #5c6064; font-size: 9px; font-weight: 700; line-height: 12px; }
+    .plus { width: 12px; height: 12px; position: relative; flex: 0 0 auto; }
+    .plus::before, .plus::after { content: ""; position: absolute; background: currentColor; left: 2px; right: 2px; top: 5px; height: 2px; }
+    .plus::after { transform: rotate(90deg); }
+
+    .project-grid { flex: 1; overflow: auto; padding: 18px 26px 34px; display: grid; grid-template-columns: repeat(auto-fill, minmax(156px, 156px)); grid-auto-rows: auto; gap: 20px 18px; align-content: start; justify-content: start; }
+    .map-view, .board-view { position: absolute; inset: 0; z-index: 7; background: #f3f3f0; transform: translateY(104%); transition: transform 520ms cubic-bezier(.2, .9, .2, 1); display: grid; grid-template-rows: 58px 1fr; }
+    .board-view { z-index: 8; background: #eeeeec; }
+    .map-view.is-open, .board-view.is-open { transform: translateY(0); }
+
+    .map-head, .board-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 26px; border-bottom: 1px solid #d6d6d2; background: #fbfbf8; }
+    .board-head { padding: 10px 14px; background: #f7f7f5; border-bottom: 1px solid #cdcdcd; }
+    .map-head strong, .board-title strong { display: block; font-size: 15px; }
+    .map-head span, .board-title span { display: block; margin-top: 2px; color: #777; font-size: 10px; }
+    .map-tools, .board-tools { display: flex; align-items: center; gap: 9px; }
+    .board-tools { flex-wrap: wrap; justify-content: flex-end; }
+    .map-tools a { color: #333; border: 1px solid #bdbdb8; background: #fff; padding: 8px 10px; text-decoration: none; font-size: 11px; font-weight: 700; }
+    .back-btn, .board-add, .delete-btn { height: 34px; min-width: 34px; display: inline-grid; place-items: center; border: 1px solid #bababa; background: #fff; color: #333; transition: transform 220ms ease, background 220ms ease; }
+    .back-btn:hover, .board-add:hover, .delete-btn:hover { transform: translateY(-1px); background: #f0f0f0; }
+    .board-title { min-width: 0; flex: 1; }
+    
+    .tool-btn { height: 34px; padding: 0 10px; border: 1px solid #bababa; background: #fff; color: #333; font-size: 11px; font-weight: 700; transition: background 180ms ease; }
+    .tool-btn:hover { background: #f0f0f0; }
+
+    .map-canvas, .board-canvas { position: relative; overflow: hidden; transform-origin: center; will-change: transform; }
+    .map-canvas { background: #d8d8d2; }
+    .board-canvas { overflow: auto; min-height: 0; background: linear-gradient(#dfdfdc 1px, transparent 1px), linear-gradient(90deg, #dfdfdc 1px, transparent 1px); background-size: 38px 38px; will-change: background-size, filter; }
+    .board-canvas.is-zooming { cursor: zoom-in; }
+    .board-canvas.is-elastic-zoom { animation: boardElasticFrame 360ms cubic-bezier(.18, 1.45, .35, 1); }
+
+    .map-tile-layer { position: absolute; inset: 0; overflow: hidden; background: #d8d8d2; filter: grayscale(1) contrast(.86) brightness(1.06); }
+    .map-tile { position: absolute; width: 256px; height: 256px; background: #d8d8d2; opacity: 0; user-select: none; pointer-events: none; transition: opacity 180ms ease; will-change: left, top, opacity; }
+    .map-tile.is-loaded { opacity: 1; }
+    .map-label { position: absolute; left: 26px; bottom: 24px; max-width: 360px; color: #777; font-size: 11px; line-height: 1.6; background: rgba(255,255,255,.72); padding: 10px 12px; border: 1px solid #d6d6d2; z-index: 3; }
+    
+    /* Cloud Sync Status UI */
+    .sync-status {
+      position: absolute; right: 26px; top: 16px; font-size: 10px; color: #888;
+      display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.8); padding: 4px 8px; border-radius: 4px;
+    }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+    .sync-dot.is-online { background: #4CAF50; box-shadow: 0 0 6px #4CAF50; }
+
+    .project-card { width: 156px; height: 156px; min-height: 156px; background: #d5d5d5; overflow: hidden; position: relative; display: flex; align-items: flex-end; padding: 12px; transform: translateZ(0) scale(1); transition: transform 430ms cubic-bezier(.16, 1.25, .38, 1), box-shadow 430ms cubic-bezier(.16, 1.25, .38, 1), filter 430ms ease; }
+    .project-card::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.62)), var(--photo); background-size: contain; background-repeat: no-repeat; background-position: center; background-color: #e2e2df; filter: grayscale(1) contrast(.84) brightness(1.08); opacity: .9; transition: transform 600ms cubic-bezier(.16, 1.25, .38, 1), opacity 360ms ease; }
+    .project-card::after { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, .34); transition: background 360ms ease; }
+    .project-card:hover { transform: scale(1.055); z-index: 3; box-shadow: 0 13px 30px rgba(0,0,0,.18); }
+    .project-card:hover::before { transform: scale(1.08); opacity: 1; filter: grayscale(0) contrast(.95) brightness(1); }
+    .project-card:hover::after { background: rgba(0, 0, 0, .24); }
+
+    .delete-project-btn {
+      position: absolute; top: 8px; right: 8px; width: 22px; height: 22px;
+      border-radius: 50%; background: rgba(0,0,0,0.4); color: white;
+      font-size: 14px; font-weight: 700; line-height: 1; padding: 0; display: flex;
+      align-items: center; justify-content: center; z-index: 10; opacity: 0;
+      transition: opacity 0.2s, background 0.2s, transform 0.2s; pointer-events: auto;
+    }
+    .project-card:hover .delete-project-btn { opacity: 1; }
+    .delete-project-btn:hover { background: rgba(215, 25, 32, 0.9); transform: scale(1.1); }
+
+    .card-text { position: relative; z-index: 2; line-height: 1.12; text-align: left; color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,.5); width: 100%; }
+    .card-title { display: block; font-weight: 700; font-size: clamp(12px, .95vw, 15px); }
+    .card-sub { display: block; margin-top: 5px; font-size: clamp(8px, .62vw, 9px); font-weight: 300; color: rgba(255,255,255,.78); }
+
+    .nickname-dock { position: absolute; right: 18px; bottom: 18px; z-index: 25; display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(255,255,255,.82); border: 1px solid #d0d0ca; box-shadow: 0 10px 24px rgba(0,0,0,.10); color: #777; font-size: 10px; text-transform: uppercase; }
+    .nickname-dock input { width: 124px; height: 28px; border: 1px solid #c7c7c1; background: #fff; padding: 0 8px; color: #222; text-transform: none; outline: none; }
+
+    .board-space { position: relative; width: 2200px; height: 1500px; transform-origin: 0 0; will-change: transform; }
+    
+    .board-item { position: absolute; width: 190px; min-height: 132px; padding: 12px; background: transparent; border: 0; box-shadow: none; display: grid; gap: 9px; cursor: grab; user-select: none; transition: transform 220ms cubic-bezier(.18, 1.45, .35, 1), opacity 180ms ease; }
+    .board-item.note { display: flex; flex-direction: column; }
+    .board-item.is-dragging { cursor: grabbing; opacity: .86; z-index: 20; transform: scale(1.018) rotate(.18deg); }
+
+    .board-item.photo { background: transparent; }
+    .board-item.photo .item-top { position: absolute; top: 5px; right: 5px; z-index: 4; display: block; opacity: 0; }
+    .board-item.photo .item-top span { display: none; }
+    .board-item .delete-btn { width: 22px; height: 22px; min-width: 22px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 999px; background: rgba(255,255,255,.96); color: #8a8a84; font-size: 0; font-weight: 400; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,.12), inset 0 0 0 1px rgba(255,255,255,.58); transform: none; }
+    .board-item .delete-btn::before { content: "x"; display: block; font-size: 13px; line-height: 1; transform: translateY(-.75px); }
+    .board-item .delete-btn:hover { background: #fff; color: #55554f; transform: scale(1.06); }
+    .board-item.photo .item-author { position: absolute; left: 7px; bottom: 8px; right: auto; z-index: 3; max-width: calc(100% - 42px); padding: 5px 8px; border-radius: 999px; background: rgba(255,255,255,.82); box-shadow: 0 3px 12px rgba(0,0,0,.10); color: #8a8a84; font-size: 9px; line-height: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+    
+    .board-item.photo.is-resizing, .board-item.note.is-resizing { z-index: 24; transform: scale(1.012); }
+
+    .board-media { width: 100%; min-height: 96px; display: block; object-fit: contain; filter: none; background-color: transparent; }
+    
+    .resize-handle { position: absolute; right: 5px; bottom: 5px; width: 22px; height: 22px; border: 0; border-radius: 999px; background: rgba(255,255,255,.96); box-shadow: 0 4px 14px rgba(0,0,0,.12), inset 0 0 0 1px rgba(255,255,255,.58); cursor: nwse-resize; opacity: 0; pointer-events: auto; touch-action: none; transition: opacity 180ms ease, transform 240ms cubic-bezier(.18, 1.45, .35, 1), background 180ms ease; z-index: 3; }
+    .resize-handle::before { content: ""; position: absolute; left: 8px; top: 8px; width: 6px; height: 6px; border-right: 1.5px solid #8a8a84; border-bottom: 1.5px solid #8a8a84; border-radius: 0 0 2px 0; }
+    .resize-handle:hover { background: #fff; transform: scale(1.06); }
+    
+    .board-item.photo:hover .resize-handle, .board-item.photo.is-resizing .resize-handle, .board-item.photo:focus-within .resize-handle,
+    .board-item.note:hover .resize-handle, .board-item.note.is-resizing .resize-handle, .board-item.note:focus-within .resize-handle { opacity: 1; }
+
+    .board-item.drawing { width: auto; min-height: 0; padding: 0; background: transparent; border: 0; box-shadow: none; overflow: visible; }
+    .board-item.drawing .board-media { filter: none; border: 0; background-color: transparent; min-height: 0; pointer-events: none; }
+    .board-item.drawing .item-top { position: absolute; top: -30px; left: 0; min-width: 88px; display: none; background: rgba(255,255,255,.92); border: 1px solid #d0d0ca; padding: 3px 5px; box-shadow: 0 8px 18px rgba(0,0,0,.12); }
+    .board-item.drawing:hover .item-top, .board-item.drawing.is-dragging .item-top { display: flex; }
+    
+    .board-item textarea { flex: 1; width: 100%; height: 100%; min-height: 68px; resize: none; border: 0; padding: 8px; outline: none; color: #333; background: transparent; font-size: 12px; line-height: 1.45; user-select: text; cursor: text; }
+    
+    .item-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 10px; color: #777; text-transform: uppercase; opacity: 0; transition: opacity 180ms ease; }
+    .board-item:hover .item-top, .board-item.is-dragging .item-top, .board-item:focus-within .item-top { opacity: 1; }
+    .item-author { justify-self: end; color: #999; font-size: 9px; line-height: 1; text-align: right; opacity: 0; transition: opacity 180ms ease; }
+    .board-item:hover .item-author, .board-item.is-dragging .item-author, .board-item:focus-within .item-author { opacity: 1; }
+    .board-item.drawing .item-author { position: absolute; right: 0; bottom: -18px; display: none; padding: 3px 5px; background: rgba(255,255,255,.82); border: 1px solid #d0d0ca; }
+    .board-item.drawing:hover .item-author, .board-item.drawing.is-dragging .item-author { display: block; }
+
+    .draw-layer { position: absolute; inset: 0; z-index: 30; display: none; background: rgba(246,246,242,.86); }
+    .draw-layer.is-open { display: block; }
+    .draw-toolbar { position: sticky; top: 0; z-index: 2; min-height: 52px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #fbfbf8; border-bottom: 1px solid #d2d2cc; }
+    .draw-toolbar label { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: #555; text-transform: uppercase; }
+    .draw-toolbar input[type="number"] { width: 58px; height: 30px; border: 1px solid #c7c7c1; padding: 0 6px; }
+    .draw-toolbar input[type="range"] { width: 110px; }
+    .draw-toolbar button { height: 30px; padding: 0 10px; border: 1px solid #bdbdb8; background: #fff; color: #222; font-size: 11px; font-weight: 700; }
+    .draw-toolbar .finish-drawing { background: #222; border-color: #222; color: #fff; }
+    #drawingCanvas { display: block; width: 2200px; height: 1448px; cursor: crosshair; }
+
+    .modal-layer { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; padding: 24px; background: rgba(0, 0, 0, .88); }
+    .modal-layer.is-open { display: grid; }
+    .project-modal { width: min(92vw, 430px); background: #fbfbf8; border: 1px solid #d8d8d2; box-shadow: 0 28px 80px rgba(0,0,0,.34); padding: 22px; display: grid; gap: 16px; }
+    .modal-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; border-bottom: 1px solid #deded9; padding-bottom: 12px; }
+    .modal-head strong { display: block; font-size: 18px; font-weight: 700; }
+    .modal-head span { display: block; margin-top: 4px; color: #777; font-size: 11px; }
+    .modal-close { width: 32px; height: 32px; border: 1px solid #c8c8c2; background: #fff; font-size: 20px; line-height: 1; }
+    .project-form { display: grid; gap: 13px; }
+    .field { display: grid; gap: 6px; font-size: 11px; color: #666; text-transform: uppercase; }
+    .field input, .field select { height: 38px; border: 1px solid #cfcfca; background: #fff; padding: 0 10px; outline: none; color: #222; text-transform: none; }
+    
+    .image-field { min-height: 132px; border: 1px dashed #bdbdb7; background: #f1f1ee; display: grid; place-items: center; overflow: hidden; color: #5f5f5b; text-align: center; cursor: pointer; position: relative; }
+    .image-field input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .image-preview { position: absolute; inset: 0; background-size: cover; background-position: center; display: none; filter: grayscale(1); }
+    .image-field.has-image .image-preview { display: block; }
+    .image-field span { position: relative; z-index: 1; padding: 8px 12px; background: rgba(255,255,255,.72); font-size: 12px; color: #333; }
+    
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+    .modal-actions button { height: 36px; padding: 0 14px; border: 1px solid #bdbdb8; background: #fff; color: #333; font-weight: 700; font-size: 12px; }
+    .modal-actions .submit-project { background: #222; border-color: #222; color: #fff; }
+    .modal-actions button:disabled { cursor: wait; opacity: .58; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="guide-x"></div>
+    <div class="guide-y"></div>
+
+    <aside class="side-panel" id="sidePanel" aria-label="Archive menu">
+      <button class="panel-tab" id="panelToggle" aria-label="menu toggle"></button>
+      <div class="panel-inner">
+        <div>
+          <div class="panel-title">Archive Layers</div>
+          <nav class="panel-list" aria-label="archive filters">
+            <button class="panel-nav is-active" type="button" data-panel="all">ALL PROJECTS</button>
+            <button class="panel-nav" type="button" data-panel="category">CATEGORY</button>
+            <button class="panel-nav" type="button" data-panel="map">MAP</button>
+            <button class="panel-nav" type="button" data-panel="group">GROUP</button>
+            <button class="panel-nav" type="button" data-panel="about">ABOUT TRACE</button>
+          </nav>
+        </div>
+
+        <section class="panel-window is-open" id="panel-all">
+          <h2>All Projects</h2>
+          <p>지금 열려 있는 모든 건축 아카이브입니다. 검색하거나, 기능적 분류로 걸러 보고, 프로젝트를 눌러 함께 보드를 채워가세요.</p>
+        </section>
+        <section class="panel-window" id="panel-category">
+          <h2>Category</h2>
+          <p>건축물의 용도를 기준으로 흔적을 묶습니다.</p>
+          <div class="category-list" id="categoryList"></div>
+        </section>
+        <section class="panel-window" id="panel-map">
+          <h2>Map</h2>
+          <p>프로젝트에 입력된 위치가 붉은 점으로 표시됩니다. 점을 누르면 해당 건축물의 보드로 이동합니다.</p>
+        </section>
+        <section class="panel-window" id="panel-group">
+          <h2>Group</h2>
+          <p>처음 그룹을 만든 사람은 이메일로 그룹 코드를 받습니다.</p>
+          <form class="panel-form" id="createGroupForm">
+            <label>Nickname <input id="leaderNicknameInput" type="text" placeholder="trace maker"></label>
+            <label>Leader Email <input id="leaderEmailInput" type="email" placeholder="leader@trace.archive"></label>
+            <div class="group-actions"><button type="submit">Create Group Code</button></div>
+            <div class="group-code" id="groupCodeOutput">CODE WILL APPEAR HERE</div>
+          </form>
+          <form class="panel-form" id="joinGroupForm">
+            <label>Nickname <input id="joinNicknameInput" type="text" placeholder="quiet observer"></label>
+            <label>Email Verification <input id="joinEmailInput" type="email" placeholder="member@trace.archive"></label>
+            <div class="verify-row">
+              <button id="sendJoinVerification" type="button">Send Code</button>
+              <input id="joinVerificationInput" type="text" inputmode="numeric" maxlength="6" placeholder="000000">
+            </div>
+            <div class="verify-row">
+              <button id="confirmJoinVerification" type="button">Verify Email</button>
+              <div class="verify-status" id="joinVerificationStatus">Verify email before joining.</div>
+            </div>
+            <label>Group Code <input id="joinCodeInput" type="text" placeholder="TRACE-0000"></label>
+            <div class="group-actions"><button id="joinGroupSubmit" type="submit" disabled>Join Group</button></div>
+          </form>
+          <div class="group-actions"><button id="deleteGroup" type="button">Delete Current Group</button></div>
+        </section>
+        <section class="panel-window" id="panel-about">
+          <h2>About Trace</h2>
+          <p>TRACE는 완성된 설명보다 남겨진 감각을 모으는 곳입니다.</p>
+        </section>
+        <div class="panel-title">TRACE / collaborative board</div>
+      </div>
+    </aside>
+
+    <section class="shell" aria-label="TRACE archive home">
+      <header class="topbar">
+        <div class="brand">
+          <div class="trace-mark" aria-hidden="true"><span></span></div>
+          <div class="brand-copy" aria-label="TRACE">
+            <div class="brand-name">TRACE</div>
+            <div class="brand-caption">서로의 흔적, 생각의 기록</div>
+          </div>
+        </div>
+        <div class="search-row">
+          <label class="search">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input id="searchInput" type="search" placeholder="SEARCH">
+          </label>
+          <button class="add-project" id="addProject" type="button"><span class="plus"></span>Add Project</button>
+        </div>
+        <div class="sync-status" id="syncStatus">
+          <span class="sync-dot" id="syncDot"></span> <span id="syncText">Local Mode</span>
+        </div>
+      </header>
+
+      <div class="project-grid" id="projectGrid" aria-label="project list"></div>
+
+      <section class="map-view" id="mapView" aria-label="project map">
+        <header class="map-head">
+          <button class="back-btn" id="backFromMap" type="button" aria-label="back">‹</button>
+          <div class="board-title">
+            <strong>TRACE Map</strong>
+            <span>added projects by location</span>
+          </div>
+          <div class="map-tools">
+            <a id="googleMapsLink" href="https://www.google.com/maps" target="_blank" rel="noreferrer">Open Google Maps</a>
+          </div>
+        </header>
+        <div class="map-canvas" id="mapCanvas">
+          <div class="map-tile-layer" id="mapTileLayer"></div>
+          <div class="map-label">Ctrl을 누르고 있는 동안 마우스 위치를 중심으로 지도가 확대됩니다.</div>
+        </div>
+      </section>
+
+      <section class="board-view" id="boardView" aria-label="project board">
+        <header class="board-head">
+          <button class="back-btn" id="backHome" type="button" aria-label="back">‹</button>
+          <div class="board-title">
+            <strong id="boardName">Project Name</strong>
+            <span id="boardSub">Architecture Name</span>
+          </div>
+          <div class="board-tools">
+            <button class="tool-btn" id="undoBtn" type="button" title="Undo (Ctrl+Z)">↶ Undo</button>
+            <button class="tool-btn" id="addTextItem" type="button">Text</button>
+            <button class="tool-btn" id="startDrawing" type="button">Draw</button>
+            <button class="tool-btn" id="uploadBoardImage" type="button" title="이미지를 복사(Ctrl+C) 후 여기서 붙여넣기(Ctrl+V) 해도 됩니다">Image</button>
+            <button class="board-add" id="addBoardItem" type="button" aria-label="add board item"><span class="plus"></span></button>
+            <input id="boardImageInput" type="file" accept="image/*" hidden>
+          </div>
+        </header>
+        <div class="board-canvas" id="boardCanvas">
+          <div class="board-space" id="boardSpace"></div>
+          <div class="draw-layer" id="drawLayer">
+            <div class="draw-toolbar">
+              <label>R <input id="penR" type="number" min="0" max="255" value="215"></label>
+              <label>G <input id="penG" type="number" min="0" max="255" value="25"></label>
+              <label>B <input id="penB" type="number" min="0" max="255" value="32"></label>
+              <label>Width <input id="penWidth" type="range" min="1" max="32" value="5"></label>
+              <button id="clearDrawing" type="button">Clear</button>
+              <button id="cancelDrawing" type="button">Cancel</button>
+              <button class="finish-drawing" id="finishDrawing" type="button">Done</button>
+            </div>
+            <canvas id="drawingCanvas" width="2200" height="1448"></canvas>
+          </div>
+          <label class="nickname-dock">
+            Nickname
+            <input id="nicknameInput" type="text" value="guest">
+          </label>
+        </div>
+      </section>
+    </section>
+
+    <div class="modal-layer" id="projectModal" aria-hidden="true">
+      <section class="project-modal" role="dialog" aria-modal="true" aria-labelledby="projectModalTitle">
+        <header class="modal-head">
+          <div><strong id="projectModalTitle">Add Project</strong><span>메인 이미지와 기본 정보를 입력하세요. (Ctrl+V로 이미지 붙여넣기 가능)</span></div>
+          <button class="modal-close" id="closeProjectModal" type="button" aria-label="close">×</button>
+        </header>
+        <form class="project-form" id="projectForm">
+          <label class="image-field" id="imageField">
+            <span class="image-preview" id="imagePreview"></span>
+            <span>MAIN IMAGE</span>
+            <input id="mainImageInput" type="file" accept="image/*">
+          </label>
+          <label class="field">Building Name <input id="buildingNameInput" type="text" placeholder="Glass House" required></label>
+          <label class="field">Architect <input id="architectInput" type="text" placeholder="Philip Johnson" required></label>
+          <label class="field">Building Usage <select id="usageInput" required></select></label>
+          <label class="field">Location <input id="locationInput" type="text" placeholder="New Canaan, Connecticut, USA" required></label>
+          <div class="modal-actions">
+            <button id="cancelProject" type="button">Cancel</button>
+            <button class="submit-project" type="submit">Create</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // 전달해주신 Firebase 키값 적용 완료
+    const firebaseConfig = {
+      apiKey: "AIzaSyDiUd6pIvY5SWZ2mF-Fm9kOKZK23HYuMN0",
+      authDomain: "j-archive-450f8.firebaseapp.com",
+      projectId: "j-archive-450f8",
+      storageBucket: "j-archive-450f8.firebasestorage.app",
+      messagingSenderId: "1046153076684",
+      appId: "1:1046153076684:web:d5a27541d4b4e75febc769",
+      measurementId: "G-81LYQ062E1"
+    };
+
+    let app, db;
+    let isCloudConnected = false;
+
+    try {
+      app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      isCloudConnected = true;
+      document.getElementById("syncDot").classList.add("is-online");
+      document.getElementById("syncText").textContent = "Cloud Syncing";
+    } catch (e) {
+      console.error("Firebase 초기화 에러:", e);
+    }
+
+    const photoStyles = [
+      "url('https://images.unsplash.com/photo-1487958449943-2429e8be8625?auto=format&fit=crop&w=700&q=80')",
+      "url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=700&q=80')",
+      "url('https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=700&q=80')"
+    ];
+
+    const sampleProjects = [
+      ["Glass House", "Philip Johnson", "Houses", "New Canaan, Connecticut, USA", 41.1412, -73.4982],
+      ["Salk Institute", "Louis Kahn", "Educational Architecture", "La Jolla, California, USA", 32.8873, -117.2468],
+      ["Farnsworth House", "Mies van der Rohe", "Houses", "Plano, Illinois, USA", 41.6356, -88.5354]
+    ];
+
+    const usageCategories = [
+      "All Uses", "Houses", "Housing", "Educational Architecture", "Cultural Architecture",
+      "Offices", "Hospitality Architecture", "Healthcare Architecture", "Sports Architecture",
+      "Religious Architecture", "Interior Design", "Public Architecture", "Landscape Architecture"
+    ];
+
+    const storageKey = "trace-archive-projects-v1";
+    const currentGroupStorageKey = "trace-archive-current-group-v1";
+    const nicknameStorageKey = "trace-archive-nickname-v1";
+    const boardZoomStorageKey = "trace-archive-board-zoom-v1";
+    const defaultGroupCode = "TRACE-DEMO";
+
+    const defaultProjects = Array.from({ length: 8 }, (_, index) => ({
+      id: crypto.randomUUID(),
+      title: sampleProjects[index % sampleProjects.length][0],
+      sub: sampleProjects[index % sampleProjects.length][1],
+      usage: sampleProjects[index % sampleProjects.length][2],
+      location: sampleProjects[index % sampleProjects.length][3],
+      lat: sampleProjects[index % sampleProjects.length][4],
+      lng: sampleProjects[index % sampleProjects.length][5],
+      photo: photoStyles[index % photoStyles.length],
+      items: [
+        { id: crypto.randomUUID(), type: "photo", text: "Facade reference", author: "trace", x: 54, y: 54, w: 240, h: 148 },
+        { id: crypto.randomUUID(), type: "note", text: "Comment, material note, or archive source can be written here.", author: "archive guest", x: 316, y: 120, w: 220, h: 132 }
+      ]
+    }));
+
+    let currentGroupCode = localStorage.getItem(currentGroupStorageKey) || defaultGroupCode;
+    let projects = loadLocalProjects();
+    let activeProject = null;
+    let isInteracting = false; 
+
+    let unsub = null;
+    function listenToCloud() {
+      if (!isCloudConnected) return;
+      if (unsub) unsub();
+      
+      unsub = onSnapshot(doc(db, "trace_groups", currentGroupCode), (docSnap) => {
+        if (docSnap.exists()) {
+          const cloudProjects = docSnap.data().projects;
+          if (!isInteracting) {
+            projects = cloudProjects;
+            localStorage.setItem(groupProjectKey(currentGroupCode), JSON.stringify(projects));
+            renderProjects();
+            
+            if (activeProject) {
+              const updatedActive = projects.find(p => p.id === activeProject.id);
+              if (updatedActive) {
+                activeProject = updatedActive;
+                renderBoard(activeProject);
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    function compressImage(dataUrl, callback) {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIMENSION = 1200; 
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_DIMENSION) { height *= MAX_DIMENSION / width; width = MAX_DIMENSION; }
+        } else {
+          if (height > MAX_DIMENSION) { width *= MAX_DIMENSION / height; height = MAX_DIMENSION; }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.6);
+        callback(compressedDataUrl);
+      };
+      img.src = dataUrl;
+    }
+
+    const MAX_HISTORY = 30; 
+    let historyStack = [];
+
+    function saveHistory() {
+      if (!activeProject) return;
+      const snapshot = JSON.stringify(activeProject.items);
+      historyStack.push(snapshot);
+      if (historyStack.length > MAX_HISTORY) historyStack.shift();
+    }
+
+    function performUndo() {
+      if (!activeProject || historyStack.length === 0) return;
+      const previousState = historyStack.pop();
+      activeProject.items = JSON.parse(previousState);
+      saveProjects();
+      renderBoard(activeProject);
+    }
+
+    document.getElementById("undoBtn").addEventListener("click", performUndo);
+    
+    document.addEventListener("keydown", event => {
+      if (event.target.tagName.toLowerCase() === 'textarea') return;
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+        event.preventDefault(); 
+        if (document.getElementById("boardView").classList.contains("is-open")) performUndo();
+      }
+    });
+
+    let uploadedProjectImage = "";
+    let activeCategory = "All Uses";
+    const sidePanel = document.getElementById("sidePanel");
+    const projectGrid = document.getElementById("projectGrid");
+    const boardView = document.getElementById("boardView");
+    const boardCanvas = document.getElementById("boardCanvas");
+    const boardSpace = document.getElementById("boardSpace");
+    const mapView = document.getElementById("mapView");
+    const mapCanvas = document.getElementById("mapCanvas");
+    const searchInput = document.getElementById("searchInput");
+    const projectModal = document.getElementById("projectModal");
+    const projectForm = document.getElementById("projectForm");
+    const imageField = document.getElementById("imageField");
+    const imagePreview = document.getElementById("imagePreview");
+    const mainImageInput = document.getElementById("mainImageInput");
+    const buildingNameInput = document.getElementById("buildingNameInput");
+    const architectInput = document.getElementById("architectInput");
+    const usageInput = document.getElementById("usageInput");
+    const locationInput = document.getElementById("locationInput");
+    const categoryList = document.getElementById("categoryList");
+    const boardImageInput = document.getElementById("boardImageInput");
+    const drawLayer = document.getElementById("drawLayer");
+    const drawingCanvas = document.getElementById("drawingCanvas");
+    const drawingContext = drawingCanvas.getContext("2d");
+    const nicknameInput = document.getElementById("nicknameInput");
+    
+    let isDrawing = false, drawingHasInk = false, drawingBounds = null;
+    let currentNickname = localStorage.getItem(nicknameStorageKey) || "guest";
+    let boardZoom = Number(localStorage.getItem(boardZoomStorageKey)) || 1;
+    let isMapZoomed = false, isMapPanning = false;
+
+    document.addEventListener("paste", event => {
+      if (event.target.tagName.toLowerCase() === 'textarea' || event.target.tagName.toLowerCase() === 'input') return; 
+
+      const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+      let imageFile = null;
+      for (const item of items) { if (item.type.indexOf("image") === 0) { imageFile = item.getAsFile(); break; } }
+      if (!imageFile) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        compressImage(e.target.result, (compressedSrc) => {
+          if (projectModal.classList.contains("is-open")) {
+            uploadedProjectImage = `url("${compressedSrc}")`;
+            imagePreview.style.backgroundImage = uploadedProjectImage;
+            imageField.classList.add("has-image");
+          } else if (activeProject && boardView.classList.contains("is-open")) {
+            addImageBoardItem(compressedSrc, "Pasted Image");
+          }
+        });
+      };
+      reader.readAsDataURL(imageFile);
+    });
+
+    const cursorDot = document.createElement("div"); cursorDot.className = "cursor-dot"; document.body.appendChild(cursorDot);
+    document.addEventListener("pointermove", event => { cursorDot.style.left = `${event.clientX}px`; cursorDot.style.top = `${event.clientY}px`; });
+    document.addEventListener("pointerdown", event => {
+      cursorDot.classList.add("is-pressed");
+      const ripple = document.createElement("div"); ripple.className = "click-ripple";
+      ripple.style.left = `${event.clientX}px`; ripple.style.top = `${event.clientY}px`; document.body.appendChild(ripple);
+      ripple.addEventListener("animationend", () => ripple.remove());
+    });
+    document.addEventListener("pointerup", () => cursorDot.classList.remove("is-pressed"));
+    document.addEventListener("pointercancel", () => cursorDot.classList.remove("is-pressed"));
+
+    function isControlKey(event) { return event.key === "Control" || event.key === "CTRL" || event.code === "ControlLeft" || event.code === "ControlRight"; }
+    document.addEventListener("keydown", event => { if (!isControlKey(event) || !boardView.classList.contains("is-open")) return; boardCanvas.classList.add("is-zooming"); cursorDot.classList.add("is-zooming"); });
+    document.addEventListener("keyup", event => { if (!isControlKey(event)) return; boardCanvas.classList.remove("is-zooming"); cursorDot.classList.remove("is-zooming"); });
+
+    boardCanvas.addEventListener("wheel", event => {
+      if (!event.ctrlKey || !boardView.classList.contains("is-open")) return;
+      event.preventDefault();
+      const rect = boardCanvas.getBoundingClientRect();
+      const pointerX = event.clientX - rect.left, pointerY = event.clientY - rect.top;
+      const focusX = (boardCanvas.scrollLeft + pointerX) / boardZoom, focusY = (boardCanvas.scrollTop + pointerY) / boardZoom;
+      const isZoomingIn = event.deltaY < 0; const nextZoom = boardZoom * (event.deltaY < 0 ? 1.12 : 1 / 1.12);
+      setBoardZoom(nextZoom);
+      boardCanvas.scrollLeft = focusX * boardZoom - pointerX; boardCanvas.scrollTop = focusY * boardZoom - pointerY;
+      triggerElastic(boardCanvas, "is-elastic-zoom"); triggerElastic(boardSpace, isZoomingIn ? "is-elastic-in" : "is-elastic-out");
+    }, { passive: false });
+
+    function triggerElastic(element, className) { element.classList.remove(className); void element.offsetWidth; element.classList.add(className); window.setTimeout(() => element.classList.remove(className), 560); }
+    function setBoardZoom(value) { boardZoom = Math.min(3, Math.max(0.35, value)); localStorage.setItem(boardZoomStorageKey, String(boardZoom)); applyBoardZoom(); }
+    function applyBoardZoom() { boardSpace.style.zoom = boardZoom; boardCanvas.style.backgroundSize = `${38 * boardZoom}px ${38 * boardZoom}px`; }
+
+    function setNickname(value) { currentNickname = value.trim() || "guest"; nicknameInput.value = currentNickname; localStorage.setItem(nicknameStorageKey, currentNickname); }
+    
+    function loadLocalProjects() { 
+      try { 
+        const saved = localStorage.getItem(groupProjectKey(currentGroupCode)); 
+        if (!saved && currentGroupCode === defaultGroupCode) return defaultProjects; 
+        if (!saved) return []; 
+        return JSON.parse(saved); 
+      } catch { return currentGroupCode === defaultGroupCode ? defaultProjects : []; } 
+    }
+    
+    async function saveProjects() { 
+      try {
+        localStorage.setItem(groupProjectKey(currentGroupCode), JSON.stringify(projects)); 
+        document.getElementById("groupCodeOutput").textContent = `${currentGroupCode} / ${projects.length} PROJECTS`;
+        
+        if (isCloudConnected) {
+          await setDoc(doc(db, "trace_groups", currentGroupCode), { projects: projects });
+        }
+      } catch (e) {
+        if (e.name === 'QuotaExceededError' || e.message.includes('quota') || e.message.includes('payload')) {
+          alert("저장 공간이 꽉 찼거나 이미지가 너무 큽니다! 불필요한 아이템을 삭제해주세요.");
+        } else {
+          console.error("저장 오류:", e);
+        }
+      }
+    }
+    function groupProjectKey(code) { return `${storageKey}:${code}`; }
+
+    function openBoard(project) {
+      activeProject = project;
+      document.getElementById("boardName").textContent = project.title;
+      document.getElementById("boardSub").textContent = project.sub;
+      historyStack = []; 
+      applyBoardZoom(); renderBoard(project); boardView.classList.add("is-open");
+    }
+
+    function addTextBoardItem() {
+      if (!activeProject) return;
+      saveHistory(); 
+      activeProject.items.push({ 
+        id: crypto.randomUUID(), type: "note", text: "새 코멘트 또는 리서치 정보를 입력하세요.", author: currentNickname, 
+        x: 72 + (activeProject.items.length * 38) % 360, y: 72 + (activeProject.items.length * 52) % 340, w: 190, h: 132 
+      });
+      saveProjects(); renderBoard(activeProject);
+    }
+
+    function addImageBoardItem(src, label = "Image") {
+      if (!activeProject) return;
+      const img = new Image();
+      img.onload = () => {
+        saveHistory(); 
+        const baseWidth = 240; 
+        const ratio = img.height / img.width;
+        const calcHeight = baseWidth * ratio;
+
+        activeProject.items.push({ 
+          id: crypto.randomUUID(), type: "photo", label, src, text: "", author: currentNickname, 
+          x: 88 + (activeProject.items.length * 42) % 420, y: 88 + (activeProject.items.length * 46) % 360, 
+          w: baseWidth, h: calcHeight 
+        });
+        saveProjects(); renderBoard(activeProject);
+      };
+      img.src = src;
+    }
+
+    function closeDrawingLayer() {
+      isDrawing = false;
+      document.getElementById("drawLayer").classList.remove("is-open");
+    }
+
+    function finishDrawing() {
+      if (!activeProject || !drawingHasInk || !drawingBounds) { closeDrawingLayer(); return; }
+      saveHistory(); 
+      const drawing = cropDrawingToDataUrl();
+      activeProject.items.push({ 
+        id: crypto.randomUUID(), type: "drawing", label: "Drawing", src: drawing.src, author: currentNickname, 
+        x: (boardCanvas.scrollLeft + drawing.x) / boardZoom, y: (boardCanvas.scrollTop + drawing.y + 52) / boardZoom, w: drawing.width, h: drawing.height 
+      });
+      saveProjects(); closeDrawingLayer(); renderBoard(activeProject);
+    }
+
+    function renderBoard(project) {
+      boardSpace.innerHTML = "";
+      project.items.forEach((item, index) => {
+        const node = document.createElement("article");
+        node.id = `item-${item.id}`; node.className = `board-item ${item.type}`; node.style.left = `${item.x}px`; node.style.top = `${item.y}px`;
+        
+        if (item.type === "photo") { node.style.width = `${item.w || 190}px`; } 
+        else if (item.type === "note") { node.style.width = `${item.w || 190}px`; node.style.height = `${item.h || 132}px`; } 
+        else if (item.type === "drawing") { node.style.width = `${item.w || 320}px`; node.style.minHeight = `${item.h || 120}px`; }
+        
+        const top = document.createElement("div"); top.className = "item-top";
+        const label = document.createElement("span"); label.textContent = item.type === "note" ? "Comment" : item.type === "drawing" ? "Drawing" : "Image";
+        const deleteButton = document.createElement("button"); deleteButton.className = "delete-btn"; deleteButton.type = "button"; deleteButton.textContent = "×";
+        top.append(label, deleteButton); node.appendChild(top);
+
+        if (item.type === "note") {
+          const textarea = document.createElement("textarea");
+          textarea.value = item.text || "";
+          textarea.addEventListener("focus", () => saveHistory());
+          textarea.addEventListener("input", event => { item.text = event.target.value; saveProjects(); });
+          node.appendChild(textarea);
+          
+          const resizeHandle = document.createElement("span"); resizeHandle.className = "resize-handle"; resizeHandle.setAttribute("role", "button"); 
+          node.appendChild(resizeHandle); 
+          makeItemResizable(node, textarea, resizeHandle, item); 
+
+        } else {
+          const media = document.createElement("div"); media.className = "board-media";
+          media.style.backgroundImage = item.src ? `url("${item.src}")` : project.photo;
+          media.style.backgroundSize = item.type === "drawing" ? "contain" : "cover"; media.style.backgroundPosition = "center"; media.style.backgroundRepeat = "no-repeat";
+          media.style.height = item.type === "drawing" ? `${item.h || 120}px` : `${item.h || 116}px`;
+          if (item.type === "drawing") media.style.width = `${item.w || 320}px`; node.appendChild(media);
+          
+          if (item.type === "photo") { 
+            const resizeHandle = document.createElement("span"); resizeHandle.className = "resize-handle"; resizeHandle.setAttribute("role", "button"); 
+            node.appendChild(resizeHandle); 
+            makeItemResizable(node, media, resizeHandle, item); 
+          }
+        }
+
+        const author = document.createElement("div"); author.className = "item-author"; author.textContent = `by ${item.author || "unknown"}`; node.appendChild(author);
+
+        deleteButton.addEventListener("click", () => {
+          saveHistory(); 
+          project.items.splice(index, 1);
+          saveProjects(); renderBoard(project);
+        });
+        makeBoardItemDraggable(node, item);
+        boardSpace.appendChild(node);
+      });
+    }
+
+    function makeItemResizable(node, contentEl, handle, item) {
+      let startX = 0, startY = 0, startW = 0, startH = 0, aspectRatio = 1, isResizing = false; 
+      const minW = 96, maxW = 720, minH = 72, maxH = 800;
+      
+      function startResize(event) {
+        event.preventDefault(); event.stopPropagation();
+        saveHistory(); 
+        
+        startX = event.clientX; startY = event.clientY;
+        startW = item.w || node.offsetWidth || 190;
+        
+        if (item.type === "photo") {
+          startH = item.h || contentEl.offsetHeight || 116;
+          aspectRatio = startW / startH;
+        } else {
+          startH = item.h || node.offsetHeight || 132;
+        }
+
+        isResizing = true; isInteracting = true; node.classList.add("is-resizing");
+        if (event.pointerId !== undefined) handle.setPointerCapture(event.pointerId);
+      }
+
+      function moveResize(event) {
+        if (!isResizing) return;
+        const newW = Math.min(maxW, Math.max(minW, startW + (event.clientX - startX) / boardZoom));
+        let newH;
+
+        if (item.type === "photo") {
+          newH = newW / aspectRatio; 
+          contentEl.style.height = `${newH}px`;
+        } else {
+          newH = Math.min(maxH, Math.max(minH, startH + (event.clientY - startY) / boardZoom));
+          node.style.height = `${newH}px`;
+        }
+
+        item.w = newW; item.h = newH;
+        node.style.width = `${item.w}px`; 
+      }
+
+      function finishResize() {
+        if (!isResizing) return; isResizing = false; isInteracting = false; 
+        node.classList.remove("is-resizing"); saveProjects();
+      }
+
+      handle.addEventListener("pointerdown", startResize); window.addEventListener("pointermove", moveResize); window.addEventListener("pointerup", finishResize); window.addEventListener("pointercancel", finishResize);
+    }
+
+    function makeBoardItemDraggable(node, item) {
+      let startX = 0, startY = 0, originX = 0, originY = 0;
+      node.addEventListener("pointerdown", event => {
+        if (event.target.closest("textarea") || event.target.closest("button") || event.target.closest(".resize-handle")) return;
+        saveHistory(); 
+        startX = event.clientX; startY = event.clientY; originX = item.x || 0; originY = item.y || 0;
+        node.classList.add("is-dragging"); isInteracting = true; node.setPointerCapture(event.pointerId);
+      });
+      node.addEventListener("pointermove", event => {
+        if (!node.classList.contains("is-dragging")) return;
+        item.x = Math.max(0, originX + (event.clientX - startX) / boardZoom); item.y = Math.max(0, originY + (event.clientY - startY) / boardZoom);
+        node.style.left = `${item.x}px`; node.style.top = `${item.y}px`;
+      });
+      const finishDrag = () => {
+        if (!node.classList.contains("is-dragging")) return;
+        node.classList.remove("is-dragging"); isInteracting = false; saveProjects();
+      };
+      node.addEventListener("pointerup", finishDrag); node.addEventListener("pointercancel", finishDrag);
+    }
+
+    function renderCategories() {
+      usageInput.innerHTML = usageCategories.filter(category => category !== "All Uses").map(category => `<option value="${category}">${category}</option>`).join("");
+      categoryList.innerHTML = usageCategories.map(category => {
+        const count = category === "All Uses" ? projects.length : projects.filter(project => project.usage === category).length;
+        return `<button type="button" class="${category === activeCategory ? "is-active" : ""}" data-category="${category}">${category} / ${count}</button>`;
+      }).join("");
+
+      categoryList.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => { activeCategory = button.dataset.category; renderCategories(); renderProjects(); });
+      });
+    } 
+
+    function renderProjects() { 
+      const keyword = searchInput.value.trim().toLowerCase();
+      projectGrid.innerHTML = ""; 
+      projects
+        .filter(project => activeCategory === "All Uses" || project.usage === activeCategory)
+        .filter(project => `${project.title} ${project.sub} ${project.usage}`.toLowerCase().includes(keyword))
+        .forEach((project, index) => { 
+          const card = document.createElement("button"); 
+          card.type = "button"; card.className = "project-card"; card.style.setProperty("--photo", project.photo); 
+          
+          const textSpan = document.createElement("span"); textSpan.className = "card-text";
+          textSpan.innerHTML = `<span class="card-title">${project.title}</span><span class="card-sub">${project.sub}</span>`;
+          
+          const deleteBtn = document.createElement("button"); deleteBtn.className = "delete-project-btn"; deleteBtn.innerHTML = "×"; deleteBtn.title = "Delete Project";
+          deleteBtn.addEventListener("click", (e) => {
+            e.stopPropagation(); 
+            if(confirm(`'${project.title}' 프로젝트를 정말 삭제하시겠습니까?`)) {
+              const projectIndex = projects.findIndex(p => p.id === project.id);
+              if(projectIndex > -1) { projects.splice(projectIndex, 1); saveProjects(); renderProjects(); renderCategories(); }
+            }
+          });
+
+          card.appendChild(textSpan); card.appendChild(deleteBtn);
+          card.addEventListener("click", () => openBoard(project)); projectGrid.appendChild(card); 
+        }); 
+    }
+    
+    projectForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const title = buildingNameInput.value.trim(); const architect = architectInput.value.trim(); const usage = usageInput.value; const loc = locationInput.value.trim();
+      if (!title || !architect || !loc) return;
+      projects.unshift({ id: crypto.randomUUID(), title: title, sub: architect, usage: usage, location: loc, lat: 37.5 + (Math.random() * 0.1 - 0.05), lng: 127.0 + (Math.random() * 0.1 - 0.05), photo: uploadedProjectImage || photoStyles[projects.length % photoStyles.length], items: [] });
+      saveProjects(); renderProjects(); renderCategories(); projectModal.classList.remove("is-open");
+    });
+
+    document.getElementById("panelToggle").addEventListener("click", () => { sidePanel.classList.toggle("is-open"); });
+    sidePanel.addEventListener("pointerleave", () => { if (sidePanel.classList.contains("is-open")) sidePanel.classList.remove("is-open"); });
+    document.querySelectorAll(".panel-nav").forEach(button => { button.addEventListener("click", () => { document.querySelectorAll(".panel-nav").forEach(item => item.classList.remove("is-active")); document.querySelectorAll(".panel-window").forEach(panel => panel.classList.remove("is-open")); button.classList.add("is-active"); document.getElementById(`panel-${button.dataset.panel}`).classList.add("is-open"); if (button.dataset.panel === "map") openMap(); else mapView.classList.remove("is-open"); }); });
+    
+    document.getElementById("addProject").addEventListener("click", () => { uploadedProjectImage = ""; imageField.classList.remove("has-image"); imagePreview.style.backgroundImage = ""; projectForm.reset(); projectModal.classList.add("is-open"); });
+    document.getElementById("closeProjectModal").addEventListener("click", () => { projectModal.classList.remove("is-open"); });
+    document.getElementById("cancelProject").addEventListener("click", () => { projectModal.classList.remove("is-open"); });
+    document.getElementById("backHome").addEventListener("click", () => { boardView.classList.remove("is-open"); activeProject = null; });
+    document.getElementById("backFromMap").addEventListener("click", () => { mapView.classList.remove("is-open"); });
+    document.getElementById("addBoardItem").addEventListener("click", addTextBoardItem);
+    document.getElementById("addTextItem").addEventListener("click", addTextBoardItem);
+    
+    document.getElementById("uploadBoardImage").addEventListener("click", () => boardImageInput.click());
+    boardImageInput.addEventListener("change", event => { 
+      const file = event.target.files?.[0]; if (!file || !activeProject) return; 
+      const reader = new FileReader(); 
+      reader.onload = () => { 
+        compressImage(reader.result, (compressedSrc) => { addImageBoardItem(compressedSrc, "Uploaded"); boardImageInput.value = ""; });
+      }; 
+      reader.readAsDataURL(file); 
+    });
+
+    mainImageInput.addEventListener("change", event => {
+      const file = event.target.files?.[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        compressImage(reader.result, (compressedSrc) => {
+          uploadedProjectImage = `url("${compressedSrc}")`; imagePreview.style.backgroundImage = uploadedProjectImage; imageField.classList.add("has-image");
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById("startDrawing").addEventListener("click", () => { if (!activeProject) return; drawingContext.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height); drawingHasInk = false; drawingBounds = null; drawLayer.classList.add("is-open"); });
+    document.getElementById("cancelDrawing").addEventListener("click", closeDrawingLayer);
+    document.getElementById("clearDrawing").addEventListener("click", () => { drawingContext.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height); drawingHasInk = false; drawingBounds = null; });
+    document.getElementById("finishDrawing").addEventListener("click", finishDrawing);
+    
+    drawingCanvas.addEventListener("pointerdown", event => { if (!drawLayer.classList.contains("is-open")) return; isDrawing = true; drawingHasInk = true; drawingCanvas.setPointerCapture(event.pointerId); const rect = drawingCanvas.getBoundingClientRect(); const x = (event.clientX - rect.left) * (drawingCanvas.width / rect.width), y = (event.clientY - rect.top) * (drawingCanvas.height / rect.height); expandDrawingBounds({x, y}); drawingContext.beginPath(); drawingContext.moveTo(x, y); });
+    drawingCanvas.addEventListener("pointermove", event => { if (!isDrawing) return; const rect = drawingCanvas.getBoundingClientRect(); const x = (event.clientX - rect.left) * (drawingCanvas.width / rect.width), y = (event.clientY - rect.top) * (drawingCanvas.height / rect.height); expandDrawingBounds({x, y}); drawingContext.lineTo(x, y); drawingContext.stroke(); });
+    drawingCanvas.addEventListener("pointerup", () => { isDrawing = false; });
+    
+    function expandDrawingBounds(point) { const padding = 20; if (!drawingBounds) { drawingBounds = { minX: point.x - padding, minY: point.y - padding, maxX: point.x + padding, maxY: point.y + padding }; return; } drawingBounds.minX = Math.min(drawingBounds.minX, point.x - padding); drawingBounds.minY = Math.min(drawingBounds.minY, point.y - padding); drawingBounds.maxX = Math.max(drawingBounds.maxX, point.x + padding); drawingBounds.maxY = Math.max(drawingBounds.maxY, point.y + padding); }
+    function cropDrawingToDataUrl() { const w = Math.max(1, drawingBounds.maxX - drawingBounds.minX), h = Math.max(1, drawingBounds.maxY - drawingBounds.minY); const crop = document.createElement("canvas"); crop.width = w; crop.height = h; crop.getContext("2d").drawImage(drawingCanvas, drawingBounds.minX, drawingBounds.minY, w, h, 0, 0, w, h); return { src: crop.toDataURL("image/png"), x: drawingBounds.minX, y: drawingBounds.minY, width: w, height: h }; }
+
+    document.getElementById("createGroupForm").addEventListener("submit", event => {
+      event.preventDefault();
+      const email = document.getElementById("leaderEmailInput").value.trim(); if (!email) return;
+      setNickname(document.getElementById("leaderNicknameInput").value);
+      const seed = email.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+      currentGroupCode = `TRACE-${String(seed % 10000).padStart(4, "0")}`;
+      localStorage.setItem(currentGroupStorageKey, currentGroupCode);
+      
+      projects = []; saveProjects(); 
+      listenToCloud(); 
+      renderCategories(); renderProjects(); document.getElementById("groupCodeOutput").textContent = `${currentGroupCode} / 0 PROJECTS`;
+    });
+
+    document.getElementById("joinGroupForm").addEventListener("submit", event => {
+      event.preventDefault();
+      const code = document.getElementById("joinCodeInput").value.trim().toUpperCase(); if (!code) return;
+      setNickname(document.getElementById("joinNicknameInput").value);
+      currentGroupCode = code; localStorage.setItem(currentGroupStorageKey, currentGroupCode);
+      
+      projects = loadLocalProjects(); 
+      listenToCloud(); 
+      renderCategories(); renderProjects(); 
+    });
+
+    function openMap() { mapView.classList.add("is-open"); } 
+    function renderMap() { mapCanvas.querySelectorAll(".map-marker").forEach(m => m.remove()); }
+
+    setNickname(currentNickname); 
+    listenToCloud(); 
+    renderCategories(); renderProjects(); applyBoardZoom(); 
+    document.getElementById("groupCodeOutput").textContent = `${currentGroupCode} / ${projects.length} PROJECTS`;
+
+  </script>
+</body>
+</html>

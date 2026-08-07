@@ -13,6 +13,9 @@
     @import url(https://fonts.googleapis.com/earlyaccess/nanummyeongjo.css);
     @import url(https://fonts.googleapis.com/css?family=Droid+Serif);
 
+    /* =========================================================
+       1. Global & Common
+       ========================================================= */
     * { margin:0; padding:0; line-height:140%; color:#555553; box-sizing: border-box; cursor: none !important; }
     ul { list-style:none; }
     body { font-size: 9pt; color: #999; font-family: '나눔명조', 'Nanum Myeongjo', serif; background: #ffffff; min-height: 100vh; overflow-x: hidden; }
@@ -26,6 +29,7 @@
     .eng { font-family:'Droid Serif', serif; letter-spacing:0; }
     .float_clear { clear:both; visibility:hidden; height:1px; }
 
+    /* Custom Cursor */
     .cursor-dot {
       position: fixed; left: 0; top: 0; width: 10px; height: 10px; border-radius: 50%;
       background: #555553; pointer-events: none;
@@ -34,6 +38,9 @@
     }
     .cursor-dot.is-pressed { width: 20px; height: 20px; background: rgba(0,0,0,0.2); mix-blend-mode: normal; border: 1px solid rgba(0,0,0,0.5); }
 
+    /* =========================================================
+       2. Topbar & Main Layout
+       ========================================================= */
     .topbar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 60px; 
       display: flex; align-items: center; justify-content: space-between;
@@ -74,6 +81,9 @@
 
     #copyright { font-size:0.8em; margin-top:60px; margin-right:52px; clear:both; text-align:right; color: #ccc; }
 
+    /* =========================================================
+       3. World Map View
+       ========================================================= */
     .map-view {
       position: fixed; inset: 0; z-index: 250; background: #ffffff;
       transform: translateY(100%); transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
@@ -86,10 +96,13 @@
 
     .custom-crosshair-marker { background: transparent; border: none; font-size: 16px; font-weight: bold; color: #111; display: flex; align-items: center; justify-content: center; user-select: none; }
 
-    .leaflet-popup-content-wrapper { background: #fff; border-radius: 0px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #eee; padding: 4px; }
+    .leaflet-popup-content-wrapper { background: #fff; border-radius: 0px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #eee; padding: 4px; pointer-events: none; }
     .leaflet-popup-content { margin: 10px; font-family: '나눔명조', serif; font-size: 9pt; color: #555553; text-align: center; }
     .leaflet-popup-content img { width: 140px; height: 100px; object-fit: contain; margin-bottom: 6px; display: block; background: #fafafa; }
 
+    /* =========================================================
+       4. Internal Project Gallery
+       ========================================================= */
     .project-view { 
       position: fixed; inset: 0; z-index: 200; background: #ffffff; 
       transform: translateY(100%); transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1); 
@@ -103,7 +116,7 @@
       display: flex; flex-direction: column; align-items: flex-start;
     }
 
-    .btn_go_main_wrapper { margin-bottom: 40px; }
+    .btn_go_main_wrapper { margin-bottom: 40px; display: flex; gap: 20px; }
     .btn_go_main { font-size: 9pt; color: #999; cursor: pointer; display: inline-block; }
     .btn_go_main:hover { color: #555553; text-decoration: underline; }
 
@@ -153,6 +166,9 @@
     .gallery-tools button:hover { color: #555553; text-decoration: underline; }
     .delete-slide-btn { color: #d71920 !important; }
 
+    /* =========================================================
+       5. Modals (Add / Edit)
+       ========================================================= */
     .modal-layer { position: fixed; inset: 0; z-index: 1000; background: rgba(255,255,255,0.9); display: none; place-items: center; }
     .modal-layer.is-open { display: grid; }
     .project-modal { width: 440px; background: #fff; padding: 40px; border: 1px solid #ddd; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: grid; gap: 16px; max-height: 90vh; overflow-y: auto; }
@@ -168,6 +184,10 @@
     .image-preview { position: absolute; inset: 0; background-size: contain; background-repeat: no-repeat; background-position: center; display: none; }
     .image-field.has-image .image-preview { display: block; }
     
+    /* 📌 다중 업로드 썸네일 미리보기 스타일 (자르거나 왜곡하지 않음) */
+    .mini-preview { width: 48px; height: 48px; border-radius: 2px; object-fit: contain; border: 1px solid #ddd; background: #fff; flex-shrink: 0; }
+    #queuedImagesContainer { display: flex; gap: 8px; margin-top: 4px; overflow-x: auto; min-height: 10px; padding-bottom: 4px; }
+
     .field { display: flex; flex-direction: column; gap: 4px; font-size: 9pt; }
     .field input, .field textarea { padding: 6px 0; border: 0; border-bottom: 1px solid #eee; font-size: 9pt; color: #555553; background: transparent; font-family: inherit; }
     .field textarea { resize: none; border: 1px solid #eee; padding: 8px; margin-top: 4px; border-radius: 2px;}
@@ -177,10 +197,12 @@
     .modal-actions button { font-size: 9pt; padding: 8px 16px; border: 1px solid #ccc; transition: background 0.2s, color 0.2s; }
     .submit-project { background: #555553; color: #fff; border-color: #555553 !important; }
     .submit-project:hover { background: #333; }
+    .submit-project:disabled { background: #999; border-color: #999 !important; cursor: not-allowed !important; }
   </style>
 </head>
 <body class="main">
   <main class="app">
+    <!-- Topbar -->
     <header class="topbar eng">
       <div class="brand">
         <div class="brand-name">ARCHIVE</div>
@@ -194,6 +216,7 @@
       </div>
     </header>
 
+    <!-- Main Image List -->
     <div id="wrapper">
       <ul id="main_image_list" class="eng">
         <li class="gateway"><a href="javascript:void(0);" id="openMapBtn" title="World Map">·</a></li>
@@ -204,6 +227,7 @@
       </div>
     </div>
 
+    <!-- World Map View -->
     <section class="map-view" id="mapView" aria-label="world map">
       <header class="map-header eng">
         <div class="brand-name">ARCHIVE // GEOGRAPHY</div>
@@ -212,10 +236,12 @@
       <div id="mapContainer"></div>
     </section>
 
+    <!-- Internal Project Gallery -->
     <section class="project-view" id="galleryView" aria-label="project gallery">
       <div class="inner_wrapper">
         <div class="btn_go_main_wrapper">
           <p class="btn_go_main eng" id="backHome" title="main">메인페이지로 이동</p>
+          <p class="btn_go_main eng" id="backToMap" title="map" style="display:none; color:#111;">세계지도로 이동</p>
         </div>
         
         <div id="project_wrapper">
@@ -278,11 +304,14 @@
           <button class="modal-close" id="closeEditModalBtn" type="button">×</button>
         </header>
         <form class="project-form" id="editProjectForm">
+          <!-- 멀티 업로드 지원 영역 -->
           <label class="image-field" id="editImageField" style="height: 100px;">
-            <span class="image-preview" id="editImagePreview"></span>
-            <span>+ Add Slide Image (Optional / Ctrl+V)</span>
-            <input id="editSlideImageInput" type="file" accept="image/*">
+            <span>+ Add Slide Images (Paste multiple times or Select)</span>
+            <input id="editSlideImageInput" type="file" accept="image/*" multiple>
           </label>
+          <!-- 업로드 큐 썸네일 표시 공간 -->
+          <div id="queuedImagesContainer"></div>
+
           <label class="field">Building Name <input id="editTitleInput" type="text" required></label>
           <label class="field">Architect / Designer <input id="editArchitectInput" type="text" required></label>
           <label class="field">Location & Year <input id="editLocationYearInput" type="text" required></label>
@@ -337,8 +366,8 @@
       "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=700&q=80"
     ];
 
-    const storageKey = "archive-projects-v15";
-    const currentGroupStorageKey = "archive-current-group-v15";
+    const storageKey = "archive-projects-v16";
+    const currentGroupStorageKey = "archive-current-group-v16";
     const defaultGroupCode = "ARCHIVE-DEMO";
 
     const defaultProjects = [
@@ -358,11 +387,14 @@
     let projects = loadLocalProjects();
     let activeProject = null;
     let isInteracting = false; 
+    let openedFromMap = false; // 지도에서 상세페이지 진입했는지 추적
 
     let currentSlideIndex = 0;
     let galleryImages = [];
     let selectedMainImageFile = null;
-    let selectedSlideImageFile = null;
+    
+    // 🔥 멀티 업로드를 위한 큐(Queue) 배열
+    let pendingSlideFiles = [];
 
     let map = null;
     let mapMarkers = [];
@@ -402,31 +434,43 @@
     const imagePreview = document.getElementById("imagePreview");
     const editProjectModal = document.getElementById("editProjectModal");
     const editImageField = document.getElementById("editImageField");
-    const editImagePreview = document.getElementById("editImagePreview");
 
-    // 🔥 클립보드 복붙(Ctrl+V)으로 이미지 바로 업로드 지원
+    // 🔥 클립보드 복붙(Ctrl+V) 여러 번 지원
     document.addEventListener("paste", e => {
       if (e.target.tagName.toLowerCase() === 'textarea' && !editProjectModal.classList.contains("is-open")) return; 
-      if (e.target.tagName.toLowerCase() === 'input') return; 
+      if (e.target.tagName.toLowerCase() === 'input' && e.target.type === 'text') return; 
 
       const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-      let imageFile = null;
-      for (const item of items) { if (item.type.indexOf("image") === 0) { imageFile = item.getAsFile(); break; } }
-      if (!imageFile) return;
-
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (projectModal.classList.contains("is-open")) {
-          selectedMainImageFile = imageFile;
-          imagePreview.style.backgroundImage = `url("${ev.target.result}")`;
-          imageField.classList.add("has-image");
-        } else if (editProjectModal.classList.contains("is-open")) {
-          selectedSlideImageFile = imageFile;
-          editImagePreview.style.backgroundImage = `url("${ev.target.result}")`;
-          editImageField.classList.add("has-image");
-        }
-      };
-      reader.readAsDataURL(imageFile);
+      
+      for (const item of items) { 
+        if (item.type.indexOf("image") === 0) { 
+          const imageFile = item.getAsFile(); 
+          
+          if (projectModal.classList.contains("is-open")) {
+            // 새 프로젝트 추가 모달에서는 단일 썸네일
+            selectedMainImageFile = imageFile;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              imagePreview.style.backgroundImage = `url("${ev.target.result}")`;
+              imageField.classList.add("has-image");
+            };
+            reader.readAsDataURL(imageFile);
+            break; 
+          } 
+          else if (editProjectModal.classList.contains("is-open")) {
+            // 상세 편집 모달에서는 여러 장 큐에 계속 쌓기
+            pendingSlideFiles.push(imageFile);
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const img = document.createElement("img");
+              img.src = ev.target.result;
+              img.className = "mini-preview";
+              document.getElementById("queuedImagesContainer").appendChild(img);
+            };
+            reader.readAsDataURL(imageFile);
+          }
+        } 
+      }
     });
 
     function loadLocalProjects() { 
@@ -444,6 +488,9 @@
     }
     function groupProjectKey(code) { return `${storageKey}:${code}`; }
 
+    // -----------------------------------------------------
+    // 지도 모달 제어 & 호버 액션
+    // -----------------------------------------------------
     document.getElementById("openMapBtn").addEventListener("click", () => {
       document.body.classList.add("map-mode");
       mapView.classList.add("is-open");
@@ -493,7 +540,12 @@
         `;
         marker.bindPopup(popupContent, { closeButton: false, offset: [0, -6] });
 
+        // 🔥 마커 마우스 호버 시 팝업 띄우기
+        marker.on('mouseover', function(e) { this.openPopup(); });
+        marker.on('mouseout', function(e) { this.closePopup(); });
+
         marker.on('click', () => {
+          openedFromMap = true; // 지도에서 진입했음을 마킹
           mapView.classList.remove("is-open");
           document.body.classList.remove("map-mode");
           openGallery(p);
@@ -503,12 +555,38 @@
       });
     }
 
+    // -----------------------------------------------------
+    // 갤러리 뷰 및 돌아가기 버튼
+    // -----------------------------------------------------
     function openGallery(project) {
       activeProject = project;
       document.body.classList.replace('main', 'project');
+      
+      // 지도에서 왔으면 "세계지도로 이동" 버튼 노출
+      if (openedFromMap) {
+        document.getElementById("backToMap").style.display = "inline-block";
+      } else {
+        document.getElementById("backToMap").style.display = "none";
+      }
+
       renderGallery(project);
       galleryView.classList.add("is-open");
     }
+
+    document.getElementById("backHome").addEventListener("click", () => {
+      galleryView.classList.remove("is-open");
+      activeProject = null;
+      document.body.classList.replace('project', 'main');
+      openedFromMap = false;
+      renderProjects();
+    });
+
+    document.getElementById("backToMap").addEventListener("click", () => {
+      galleryView.classList.remove("is-open");
+      activeProject = null;
+      document.body.classList.replace('project', 'main');
+      document.getElementById("openMapBtn").click(); // 지도로 다시 이동
+    });
 
     function renderGallery(project) {
       const list = document.getElementById("galleryList");
@@ -584,13 +662,17 @@
       }
     });
 
+    // -----------------------------------------------------
+    // Edit Modal 다중 파일 및 로직
+    // -----------------------------------------------------
     function buttonClick(btn, fn) { btn.addEventListener("click", fn); }
 
     buttonClick(document.getElementById("openEditModalBtn"), () => {
       if(!activeProject) return;
-      selectedSlideImageFile = null;
-      editImageField.classList.remove("has-image");
-      editImagePreview.style.backgroundImage = "";
+      
+      // 모달 열 때 큐 초기화
+      pendingSlideFiles = [];
+      document.getElementById("queuedImagesContainer").innerHTML = "";
       
       document.getElementById("editTitleInput").value = activeProject.title || "";
       document.getElementById("editArchitectInput").value = activeProject.architect || "";
@@ -605,39 +687,65 @@
       e.preventDefault();
       if(!activeProject) return;
 
-      activeProject.title = document.getElementById("editTitleInput").value.trim();
-      activeProject.architect = document.getElementById("editArchitectInput").value.trim();
-      activeProject.locationYear = document.getElementById("editLocationYearInput").value.trim();
-      activeProject.coords = document.getElementById("editCoordsInput").value.trim();
-      activeProject.description = document.getElementById("editDescInput").value.trim();
+      const submitBtn = e.target.querySelector(".submit-project");
+      const originText = submitBtn.textContent;
+      submitBtn.textContent = "Saving..."; // 여러 장 올릴 때 로딩 피드백
+      submitBtn.disabled = true;
 
-      if(selectedSlideImageFile) {
-        const slideUrl = await uploadFileToStorage(selectedSlideImageFile);
-        if(!activeProject.items) activeProject.items = [];
-        activeProject.items.push({ id: crypto.randomUUID(), type: "photo", src: slideUrl });
-        currentSlideIndex = activeProject.items.filter(i => i.type==="photo").length;
+      try {
+        activeProject.title = document.getElementById("editTitleInput").value.trim();
+        activeProject.architect = document.getElementById("editArchitectInput").value.trim();
+        activeProject.locationYear = document.getElementById("editLocationYearInput").value.trim();
+        activeProject.coords = document.getElementById("editCoordsInput").value.trim();
+        activeProject.description = document.getElementById("editDescInput").value.trim();
+
+        // 큐에 있는 모든 이미지들을 차례대로 업로드
+        if(pendingSlideFiles.length > 0) {
+          if(!activeProject.items) activeProject.items = [];
+          for(let file of pendingSlideFiles) {
+            const slideUrl = await uploadFileToStorage(file);
+            activeProject.items.push({ id: crypto.randomUUID(), type: "photo", src: slideUrl });
+          }
+          currentSlideIndex = activeProject.items.filter(i => i.type==="photo").length;
+        }
+
+        await saveProjects();
+        renderGallery(activeProject);
+        editProjectModal.classList.remove("is-open");
+      } catch (err) {
+        alert("저장 중 오류가 발생했습니다.");
+      } finally {
+        submitBtn.textContent = originText;
+        submitBtn.disabled = false;
       }
-
-      await saveProjects();
-      renderGallery(activeProject);
-      editProjectModal.classList.remove("is-open");
     });
 
+    // 파일 선택창(다중선택) 지원
     const editSlideImgInput = document.getElementById("editSlideImageInput");
     editSlideImgInput.addEventListener("change", e => { 
-      const f = e.target.files?.[0]; if (!f) return; 
-      selectedSlideImageFile = f;
-      const r = new FileReader(); 
-      r.onload = (ev) => { 
-        editImagePreview.style.backgroundImage = `url("${ev.target.result}")`; 
-        editImageField.classList.add("has-image"); 
-      }; 
-      r.readAsDataURL(f); 
+      const files = e.target.files;
+      if (!files || files.length === 0) return; 
+      
+      for(let i=0; i < files.length; i++){
+        const f = files[i];
+        pendingSlideFiles.push(f);
+        const r = new FileReader(); 
+        r.onload = (ev) => { 
+          const img = document.createElement("img");
+          img.src = ev.target.result;
+          img.className = "mini-preview";
+          document.getElementById("queuedImagesContainer").appendChild(img);
+        }; 
+        r.readAsDataURL(f); 
+      }
     });
 
     buttonClick(document.getElementById("closeEditModalBtn"), () => editProjectModal.classList.remove("is-open"));
     buttonClick(document.getElementById("cancelEditProject"), () => editProjectModal.classList.remove("is-open"));
 
+    // -----------------------------------------------------
+    // 메인 화면 로직
+    // -----------------------------------------------------
     function renderProjects() { 
       const kw = document.getElementById("searchInput").value.trim().toLowerCase();
       
@@ -663,8 +771,8 @@
                 li.querySelector(".delete-project-btn").addEventListener("click", e => {
                   e.stopPropagation(); if(confirm(`'${p.title}' 삭제할까요?`)) { projects.splice(i, 1); saveProjects(); renderProjects(); }
                 });
-                li.querySelector(".picture").addEventListener("click", () => openGallery(p));
-                li.querySelector(".caption").addEventListener("click", () => openGallery(p));
+                li.querySelector(".picture").addEventListener("click", () => { openedFromMap = false; openGallery(p); });
+                li.querySelector(".caption").addEventListener("click", () => { openedFromMap = false; openGallery(p); });
                 projectGrid.appendChild(li); 
               }); 
     }
@@ -672,24 +780,36 @@
     document.getElementById("projectForm").addEventListener("submit", async e => {
       e.preventDefault();
       
-      let photoUrl = photoStyles[projects.length % photoStyles.length];
-      if (selectedMainImageFile) {
-        photoUrl = await uploadFileToStorage(selectedMainImageFile);
-      }
+      const submitBtn = e.target.querySelector(".submit-project");
+      const originText = submitBtn.textContent;
+      submitBtn.textContent = "Creating...";
+      submitBtn.disabled = true;
 
-      projects.unshift({ 
-        id: crypto.randomUUID(), 
-        title: document.getElementById("buildingNameInput").value.trim(), 
-        architect: document.getElementById("architectInput").value.trim(), 
-        locationYear: document.getElementById("locationYearInput").value.trim(),
-        coords: document.getElementById("coordsInput").value.trim(),
-        description: document.getElementById("descInput").value.trim(),
-        photo: photoUrl, 
-        items: [] 
-      });
-      await saveProjects(); 
-      renderProjects(); 
-      projectModal.classList.remove("is-open");
+      try {
+        let photoUrl = photoStyles[projects.length % photoStyles.length];
+        if (selectedMainImageFile) {
+          photoUrl = await uploadFileToStorage(selectedMainImageFile);
+        }
+
+        projects.unshift({ 
+          id: crypto.randomUUID(), 
+          title: document.getElementById("buildingNameInput").value.trim(), 
+          architect: document.getElementById("architectInput").value.trim(), 
+          locationYear: document.getElementById("locationYearInput").value.trim(),
+          coords: document.getElementById("coordsInput").value.trim(),
+          description: document.getElementById("descInput").value.trim(),
+          photo: photoUrl, 
+          items: [] 
+        });
+        await saveProjects(); 
+        renderProjects(); 
+        projectModal.classList.remove("is-open");
+      } catch (err) {
+        alert("프로젝트 생성 중 오류가 발생했습니다.");
+      } finally {
+        submitBtn.textContent = originText;
+        submitBtn.disabled = false;
+      }
     });
 
     buttonClick(document.getElementById("addProject"), () => { 
@@ -702,13 +822,6 @@
     
     buttonClick(document.getElementById("closeProjectModal"), () => projectModal.classList.remove("is-open"));
     buttonClick(document.getElementById("cancelProject"), () => projectModal.classList.remove("is-open"));
-    
-    buttonClick(document.getElementById("backHome"), () => { 
-      galleryView.classList.remove("is-open"); 
-      activeProject = null; 
-      document.body.classList.replace('project', 'main');
-      renderProjects(); 
-    });
     
     document.getElementById("searchInput").addEventListener("input", renderProjects);
     

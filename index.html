@@ -3,9 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TRACE Archive Board</title>
+  <title>ARCHIVE</title>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <!-- 지도 구현을 위한 Leaflet 라이브러리 연동 -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     @import url(https://fonts.googleapis.com/earlyaccess/nanummyeongjo.css);
@@ -18,8 +21,7 @@
     ul { list-style:none; }
     body { font-size: 9pt; color: #999; font-family: '나눔명조', 'Nanum Myeongjo', serif; background: #ffffff; min-height: 100vh; overflow-x: hidden; }
     
-    /* 이중 스크롤바 방지 */
-    body.project { overflow: hidden; } 
+    body.project, body.map-mode { overflow: hidden; } 
     
     a:link, a:visited, a:hover, a:active { text-decoration:none; color:#555553; }
     button, input, textarea, select { font: inherit; border: 0; background: transparent; }
@@ -59,16 +61,18 @@
     #wrapper { max-width:1200px; margin:100px auto; padding-bottom:50px; position:relative; min-width:610px; }
     #main_image_list { position:relative; top:-50px; margin:0 auto; overflow: hidden; }
     
-    /* 강조 하이라이트 유지하되 왜곡/줌 차단 */
     #main_image_list li { width:200px; height:200px; float:left; position:relative; transition: background 0.3s, box-shadow 0.3s; }
     #main_image_list li:hover { background: #fcfcfc; box-shadow: 0 4px 12px rgba(0,0,0,0.03); z-index: 10; }
 
     #main_image_list li.introduce a { display:block; position:absolute; top:50px; left:50px; width:100px; height:100px; line-height: 100px; text-align: center; color: #ccc;}
-    #main_image_list li.poet a { display:block; text-align:center; margin-top:80px; font-size: 8pt; color: #ccc;}
+    
+    /* 🔥 지도로 연결되는 게이트웨이 슬롯 (미니멀한 점 하나) */
+    #main_image_list li.gateway { background: none; }
+    #main_image_list li.gateway a { display:block; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; font-size: 16pt; color: #bbb; transition: color 0.2s; }
+    #main_image_list li.gateway a:hover { color: #555553; }
 
     #main_image_list li .picture { position:absolute; top:50px; left:50px; width: 100px; height: 100px; display: flex; justify-content: center; align-items: center; }
     
-    /* 흑백 제거: 사진을 원본 컬러로 노출 */
     #main_image_list li .picture img { 
       max-width: 100%; max-height: 100%; 
       object-fit: contain; border: 0px; 
@@ -87,7 +91,34 @@
     #copyright { font-size:0.8em; margin-top:60px; margin-right:52px; clear:both; text-align:right; color: #ccc; }
 
     /* =========================================================
-       3. Internal Project Gallery (가로 무한 스트립)
+       3. World Map View (세계 지도 페이지)
+       ========================================================= */
+    .map-view {
+      position: fixed; inset: 0; z-index: 250; background: #ffffff;
+      transform: translateY(100%); transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex; flex-direction: column;
+    }
+    .map-view.is-open { transform: translateY(0); }
+    
+    .map-header {
+      height: 60px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid #f0f0f0; background: rgba(255,255,255,0.95); z-index: 10;
+    }
+    #mapContainer { flex: 1; width: 100%; background: #fbfbfb; }
+
+    /* 십자선(+) 커스텀 마커 디자인 */
+    .custom-crosshair-marker {
+      background: transparent; border: none; font-size: 16px; font-weight: bold; color: #111;
+      display: flex; align-items: center; justify-content: center; user-select: none;
+    }
+
+    /* 지도 위 호버 카드 커스텀 */
+    .leaflet-popup-content-wrapper { background: #fff; border-radius: 0px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #eee; padding: 4px; }
+    .leaflet-popup-content { margin: 10px; font-family: '나눔명조', serif; font-size: 9pt; color: #555553; text-align: center; }
+    .leaflet-popup-content img { width: 140px; height: 100px; object-fit: contain; margin-bottom: 6px; display: block; background: #fafafa; }
+
+    /* =========================================================
+       4. Internal Project Gallery (가로 무한 스트립)
        ========================================================= */
     .project-view { 
       position: fixed; inset: 0; z-index: 200; background: #ffffff; 
@@ -153,7 +184,7 @@
     .delete-slide-btn { color: #d71920 !important; }
 
     /* =========================================================
-       4. Modals (Add / Edit)
+       5. Modals (Add / Edit)
        ========================================================= */
     .modal-layer { position: fixed; inset: 0; z-index: 1000; background: rgba(255,255,255,0.9); display: none; place-items: center; }
     .modal-layer.is-open { display: grid; }
@@ -186,7 +217,7 @@
     <!-- Topbar -->
     <header class="topbar eng">
       <div class="brand">
-        <div class="brand-name">TRACE Archive</div>
+        <div class="brand-name">ARCHIVE</div>
       </div>
       <div class="search-row">
         <label class="search"><input id="searchInput" type="search" placeholder="Search..."></label>
@@ -200,28 +231,34 @@
     <!-- Main Image List -->
     <div id="wrapper">
       <ul id="main_image_list" class="eng">
-        <li class="introduce"><a href="#">TRACE</a></li>
-        <li class="poet"><a href="#">Keeping Things Whole <br /> — <br /> Mark Strand</a></li>
+        <!-- 지도로 연결되는 게이트웨이 심볼 (점 하나) -->
+        <li class="gateway"><a href="javascript:void(0);" id="openMapBtn" title="World Map">·</a></li>
       </ul>
       <p class="float_clear"></p>
       <div id="copyright" class="eng">
-        <p>all images and content</p><p>©trace archive</p>
+        <p>all images and content</p><p>©archive</p>
       </div>
     </div>
 
-    <!-- 3. Internal Project Gallery -->
+    <!-- World Map View -->
+    <section class="map-view" id="mapView" aria-label="world map">
+      <header class="map-header eng">
+        <div class="brand-name">ARCHIVE // GEOGRAPHY</div>
+        <p class="btn_go_main eng" id="closeMapBtn" title="Back">메인페이지로 이동</p>
+      </header>
+      <div id="mapContainer"></div>
+    </section>
+
+    <!-- Internal Project Gallery -->
     <section class="project-view" id="galleryView" aria-label="project gallery">
       <div class="inner_wrapper">
-        
         <div class="btn_go_main_wrapper">
           <p class="btn_go_main eng" id="backHome" title="main">메인페이지로 이동</p>
         </div>
         
         <div id="project_wrapper">
           <div id="project">
-            <ul id="galleryList">
-              <!-- JS에서 동적으로 이미지가 생성됩니다. -->
-            </ul>
+            <ul id="galleryList"></ul>
           </div>
           
           <button class="nav-arrow prev-arrow" id="btnPrev" type="button" aria-label="Previous">
@@ -232,18 +269,15 @@
           </button>
         </div>
 
-        <!-- 좌측 정렬 텍스트 -->
         <div class="project_caption eng">
           <p id="galleryCaptionTitle"></p>
           <div class="desc" id="galleryCaptionDesc"></div>
         </div>
 
-        <!-- 편집 도구 -->
         <div class="gallery-tools eng">
           <button id="openEditModalBtn" type="button">Edit / Add Content</button>
           <button id="deleteCurrentImage" class="delete-slide-btn" type="button">Delete Current Slide</button>
         </div>
-
       </div>
     </section>
 
@@ -262,6 +296,7 @@
           </label>
           <label class="field">Title <input id="buildingNameInput" type="text" placeholder="Project Title" required></label>
           <label class="field">Info <input id="architectInput" type="text" placeholder="Year / Data" required></label>
+          <label class="field">Location Coordinates (Lat, Lng) <input id="coordsInput" type="text" placeholder="e.g., 37.5665, 126.9780 (Seoul)" value="37.5665, 126.9780"></label>
           <div class="modal-actions">
             <button id="cancelProject" type="button">Cancel</button>
             <button class="submit-project" type="submit">Create</button>
@@ -285,6 +320,7 @@
           </label>
           <label class="field">Title <input id="editTitleInput" type="text" required></label>
           <label class="field">Info <input id="editInfoInput" type="text" required></label>
+          <label class="field">Location Coordinates (Lat, Lng) <input id="editCoordsInput" type="text" placeholder="37.5665, 126.9780"></label>
           <label class="field" style="margin-top: 5px;">Description <textarea id="editDescInput" rows="5" placeholder="Detailed architectural description..."></textarea></label>
           <div class="modal-actions">
             <button id="cancelEditProject" type="button">Cancel</button>
@@ -333,13 +369,14 @@
       "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=700&q=80"
     ];
 
-    const storageKey = "trace-archive-projects-v10";
-    const currentGroupStorageKey = "trace-archive-current-group-v10";
-    const defaultGroupCode = "TRACE-DEMO";
+    const storageKey = "archive-projects-v11";
+    const currentGroupStorageKey = "archive-current-group-v11";
+    const defaultGroupCode = "ARCHIVE-DEMO";
 
     const defaultProjects = Array.from({ length: 6 }, (_, i) => ({
       id: crypto.randomUUID(),
       title: "Sample Architecture", sub: "Seoul, 2026", description: "This is a detailed description of the project.",
+      coords: "37.5665, 126.9780",
       photo: photoStyles[i % photoStyles.length], 
       items: [
         { type: "photo", src: photoStyles[(i+1) % photoStyles.length] },
@@ -357,11 +394,15 @@
     let uploadedProjectImage = "";
     let uploadedSlideImage = "";
 
+    // 지도 인스턴스 전역 관리
+    let map = null;
+    let mapMarkers = [];
+
     let unsub = null;
     function listenToCloud() {
       if (!isCloudConnected) return;
       if (unsub) unsub();
-      unsub = onSnapshot(doc(db, "trace_groups", currentGroupCode), (docSnap) => {
+      unsub = onSnapshot(doc(db, "archive_groups", currentGroupCode), (docSnap) => {
         if (docSnap.exists()) {
           const cloudProjects = docSnap.data().projects;
           if (!isInteracting) {
@@ -394,6 +435,7 @@
     }
 
     const galleryView = document.getElementById("galleryView");
+    const mapView = document.getElementById("mapView");
     const projectGrid = document.getElementById("main_image_list");
     const projectModal = document.getElementById("projectModal");
     const imageField = document.getElementById("imageField");
@@ -436,12 +478,80 @@
     async function saveProjects() { 
       try {
         localStorage.setItem(groupProjectKey(currentGroupCode), JSON.stringify(projects)); 
-        if (isCloudConnected) await setDoc(doc(db, "trace_groups", currentGroupCode), { projects: projects });
+        if (isCloudConnected) await setDoc(doc(db, "archive_groups", currentGroupCode), { projects: projects });
       } catch (e) {
         if (e.name === 'QuotaExceededError' || e.message.includes('quota')) alert("저장 공간이 꽉 찼습니다!");
       }
     }
     function groupProjectKey(code) { return `${storageKey}:${code}`; }
+
+    // -----------------------------------------------------
+    // 지도(Map View) 모달 제어 및 마커 렌더링
+    // -----------------------------------------------------
+    document.getElementById("openMapBtn").addEventListener("click", () => {
+      document.body.classList.add("map-mode");
+      mapView.classList.add("is-open");
+      
+      setTimeout(() => {
+        if (!map) {
+          // 옅은 회색 라인의 모노톤 도면 스타일 지도 타일 적용 (CartoDB Positron)
+          map = L.map('mapContainer', { zoomControl: false }).setView([37.5665, 126.9780], 3);
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            subdomains: 'abcd'
+          }).addTo(map);
+        } else {
+          map.invalidateSize();
+        }
+        renderMapMarkers();
+      }, 300);
+    });
+
+    document.getElementById("closeMapBtn").addEventListener("click", () => {
+      mapView.classList.remove("is-open");
+      document.body.classList.remove("map-mode");
+    });
+
+    function renderMapMarkers() {
+      // 기존 마커 초기화
+      mapMarkers.forEach(m => m.remove());
+      mapMarkers = [];
+
+      projects.forEach(p => {
+        if (!p.coords) return;
+        const parts = p.coords.split(',').map(s => parseFloat(s.trim()));
+        if (parts.length !== 2 || isNaN(parts[0]) || isNaN(parts[1])) return;
+
+        // 대지 분석 및 십자선(+) 아이콘 생성
+        const crosshairIcon = L.divIcon({
+          className: 'custom-crosshair-marker',
+          html: '+',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+
+        const marker = L.marker([parts[0], parts[1]], { icon: crosshairIcon }).addTo(map);
+        
+        // 팝업 카드 구성
+        const popupContent = `
+          <div>
+            <img src="${p.photo}" alt="${p.title}" />
+            <strong>${p.title}</strong><br>
+            <span style="color:#999;">${p.sub}</span>
+          </div>
+        `;
+        marker.bindPopup(popupContent, { closeButton: false, offset: [0, -6] });
+
+        // 마커 클릭 시 해당 프로젝트 상세 페이지로 바로 진입
+        marker.on('click', () => {
+          mapView.classList.remove("is-open");
+          document.body.classList.remove("map-mode");
+          openGallery(p);
+        });
+
+        mapMarkers.push(marker);
+      });
+    }
 
     // -----------------------------------------------------
     // 갤러리 슬라이더 로직
@@ -539,6 +649,7 @@
       
       document.getElementById("editTitleInput").value = activeProject.title || "";
       document.getElementById("editInfoInput").value = activeProject.sub || "";
+      document.getElementById("editCoordsInput").value = activeProject.coords || "";
       document.getElementById("editDescInput").value = activeProject.description || "";
       
       editProjectModal.classList.add("is-open");
@@ -550,6 +661,7 @@
 
       activeProject.title = document.getElementById("editTitleInput").value.trim();
       activeProject.sub = document.getElementById("editInfoInput").value.trim();
+      activeProject.coords = document.getElementById("editCoordsInput").value.trim();
       activeProject.description = document.getElementById("editDescInput").value.trim();
 
       if(uploadedSlideImage) {
@@ -585,7 +697,7 @@
       const kw = document.getElementById("searchInput").value.trim().toLowerCase();
       
       Array.from(projectGrid.children).forEach(child => {
-        if (!child.classList.contains('introduce') && !child.classList.contains('poet')) {
+        if (!child.classList.contains('gateway')) {
           child.remove();
         }
       });
@@ -618,6 +730,7 @@
         id: crypto.randomUUID(), 
         title: document.getElementById("buildingNameInput").value.trim(), 
         sub: document.getElementById("architectInput").value.trim(), 
+        coords: document.getElementById("coordsInput").value.trim(),
         description: "",
         photo: uploadedProjectImage || photoStyles[projects.length % photoStyles.length], 
         items: [] 

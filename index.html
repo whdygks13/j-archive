@@ -6,7 +6,6 @@
   <title>ARCHIVE</title>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <!-- 지도 구현을 위한 Leaflet 라이브러리 연동 -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -64,25 +63,18 @@
     #main_image_list li { width:200px; height:200px; float:left; position:relative; transition: background 0.3s, box-shadow 0.3s; }
     #main_image_list li:hover { background: #fcfcfc; box-shadow: 0 4px 12px rgba(0,0,0,0.03); z-index: 10; }
 
-    #main_image_list li.introduce a { display:block; position:absolute; top:50px; left:50px; width:100px; height:100px; line-height: 100px; text-align: center; color: #ccc;}
-    
-    /* 🔥 지도로 연결되는 게이트웨이 슬롯 (미니멀한 점 하나) */
     #main_image_list li.gateway { background: none; }
     #main_image_list li.gateway a { display:block; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; font-size: 16pt; color: #bbb; transition: color 0.2s; }
     #main_image_list li.gateway a:hover { color: #555553; }
 
     #main_image_list li .picture { position:absolute; top:50px; left:50px; width: 100px; height: 100px; display: flex; justify-content: center; align-items: center; }
-    
-    #main_image_list li .picture img { 
-      max-width: 100%; max-height: 100%; 
-      object-fit: contain; border: 0px; 
-      transition: opacity 0.2s ease; 
-    }
+    #main_image_list li .picture img { max-width: 100%; max-height: 100%; object-fit: contain; border: 0px; transition: opacity 0.2s ease; }
     #main_image_list li:hover .picture img { opacity: 0.85; }
 
+    /* 첫 화면 캡션: 이름과 건축가만 노출 */
     #main_image_list li .caption { position:absolute; top:160px; left:0; display:block; width:100%; text-align:center; }
     #main_image_list li .caption p { margin: 0; font-size: 8pt; color: #999; }
-    #main_image_list li .caption p:first-child { color: #555553; }
+    #main_image_list li .caption p:first-child { color: #555553; font-weight: bold; }
     
     .delete-project-btn { position: absolute; top: 15px; right: 15px; width: 16px; height: 16px; font-size: 10px; color: #999; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s, background 0.2s, color 0.2s; z-index: 10; }
     #main_image_list li:hover .delete-project-btn { opacity: 1; }
@@ -91,7 +83,7 @@
     #copyright { font-size:0.8em; margin-top:60px; margin-right:52px; clear:both; text-align:right; color: #ccc; }
 
     /* =========================================================
-       3. World Map View (세계 지도 페이지)
+       3. World Map View
        ========================================================= */
     .map-view {
       position: fixed; inset: 0; z-index: 250; background: #ffffff;
@@ -100,25 +92,17 @@
     }
     .map-view.is-open { transform: translateY(0); }
     
-    .map-header {
-      height: 60px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid #f0f0f0; background: rgba(255,255,255,0.95); z-index: 10;
-    }
+    .map-header { height: 60px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f0; background: rgba(255,255,255,0.95); z-index: 10; }
     #mapContainer { flex: 1; width: 100%; background: #fbfbfb; }
 
-    /* 십자선(+) 커스텀 마커 디자인 */
-    .custom-crosshair-marker {
-      background: transparent; border: none; font-size: 16px; font-weight: bold; color: #111;
-      display: flex; align-items: center; justify-content: center; user-select: none;
-    }
+    .custom-crosshair-marker { background: transparent; border: none; font-size: 16px; font-weight: bold; color: #111; display: flex; align-items: center; justify-content: center; user-select: none; }
 
-    /* 지도 위 호버 카드 커스텀 */
     .leaflet-popup-content-wrapper { background: #fff; border-radius: 0px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #eee; padding: 4px; }
     .leaflet-popup-content { margin: 10px; font-family: '나눔명조', serif; font-size: 9pt; color: #555553; text-align: center; }
     .leaflet-popup-content img { width: 140px; height: 100px; object-fit: contain; margin-bottom: 6px; display: block; background: #fafafa; }
 
     /* =========================================================
-       4. Internal Project Gallery (가로 무한 스트립)
+       4. Internal Project Gallery
        ========================================================= */
     .project-view { 
       position: fixed; inset: 0; z-index: 200; background: #ffffff; 
@@ -165,15 +149,16 @@
     .prev-arrow { left: -60px; } 
     .next-arrow { right: -60px; } 
     .nav-arrow svg {
-      width: 20px; height: 40px; 
-      stroke: #888; stroke-width: 2px; fill: none;
+      width: 20px; height: 40px; stroke: #888; stroke-width: 2px; fill: none;
       transition: stroke 0.2s, stroke-width 0.2s;
     }
     .nav-arrow:hover svg { stroke: #111; stroke-width: 2.5px; }
 
+    /* 상세 페이지 좌하단 메타데이터 및 설명글 영역 */
     .project_caption { margin-top: 30px; text-align: left; width: 100%; max-width: 850px; }
-    .project_caption p { font-size: 9pt; color: #555553; margin-bottom: 5px; }
-    .project_caption .desc { margin-top: 20px; font-size: 9pt; color: #777; line-height: 1.8; white-space: pre-wrap; text-align: left; }
+    .project_caption .meta-line { font-size: 9pt; color: #555553; margin-bottom: 3px; }
+    .project_caption .sub-line { font-size: 9pt; color: #999; margin-bottom: 20px; }
+    .project_caption .desc { font-size: 9pt; color: #777; line-height: 1.8; white-space: pre-wrap; text-align: left; border-top: 1px solid #f0f0f0; padding-top: 20px; }
 
     .gallery-tools { 
       margin-top: 60px; display: flex; justify-content: flex-start; gap: 30px; 
@@ -188,25 +173,25 @@
        ========================================================= */
     .modal-layer { position: fixed; inset: 0; z-index: 1000; background: rgba(255,255,255,0.9); display: none; place-items: center; }
     .modal-layer.is-open { display: grid; }
-    .project-modal { width: 420px; background: #fff; padding: 40px; border: 1px solid #ddd; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: grid; gap: 20px; }
+    .project-modal { width: 440px; background: #fff; padding: 40px; border: 1px solid #ddd; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: grid; gap: 16px; max-height: 90vh; overflow-y: auto; }
     .modal-head { display: flex; justify-content: space-between; align-items: start; }
     .modal-head h2 { font-size: 11pt; font-weight: normal; color: #555553; margin: 0; }
     .modal-close { font-size: 14pt; color: #999; transition: color 0.2s; }
     .modal-close:hover { color: #555553; }
     
-    .project-form { display: grid; gap: 15px; }
-    .image-field { height: 160px; border: 1px dashed #ccc; display: grid; place-items: center; position: relative; background: #fafafa; color: #999; font-size: 9pt; transition: background 0.2s;}
+    .project-form { display: grid; gap: 12px; }
+    .image-field { height: 140px; border: 1px dashed #ccc; display: grid; place-items: center; position: relative; background: #fafafa; color: #999; font-size: 9pt; transition: background 0.2s;}
     .image-field:hover { background: #f0f0f0; }
     .image-field input { position: absolute; inset: 0; opacity: 0; }
     .image-preview { position: absolute; inset: 0; background-size: contain; background-repeat: no-repeat; background-position: center; display: none; }
     .image-field.has-image .image-preview { display: block; }
     
-    .field { display: flex; flex-direction: column; gap: 6px; font-size: 9pt; }
-    .field input, .field textarea { padding: 8px 0; border: 0; border-bottom: 1px solid #eee; font-size: 9pt; color: #555553; background: transparent; font-family: inherit; }
-    .field textarea { resize: none; border: 1px solid #eee; padding: 10px; margin-top: 4px; border-radius: 2px;}
+    .field { display: flex; flex-direction: column; gap: 4px; font-size: 9pt; }
+    .field input, .field textarea { padding: 6px 0; border: 0; border-bottom: 1px solid #eee; font-size: 9pt; color: #555553; background: transparent; font-family: inherit; }
+    .field textarea { resize: none; border: 1px solid #eee; padding: 8px; margin-top: 4px; border-radius: 2px;}
     .field input:focus, .field textarea:focus { outline: none; border-color: #555553; }
     
-    .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 15px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; }
     .modal-actions button { font-size: 9pt; padding: 8px 16px; border: 1px solid #ccc; transition: background 0.2s, color 0.2s; }
     .submit-project { background: #555553; color: #fff; border-color: #555553 !important; }
     .submit-project:hover { background: #333; }
@@ -231,7 +216,6 @@
     <!-- Main Image List -->
     <div id="wrapper">
       <ul id="main_image_list" class="eng">
-        <!-- 지도로 연결되는 게이트웨이 심볼 (점 하나) -->
         <li class="gateway"><a href="javascript:void(0);" id="openMapBtn" title="World Map">·</a></li>
       </ul>
       <p class="float_clear"></p>
@@ -269,8 +253,10 @@
           </button>
         </div>
 
+        <!-- 상세 페이지 좌하단 메타데이터 및 설명글 -->
         <div class="project_caption eng">
-          <p id="galleryCaptionTitle"></p>
+          <p class="meta-line" id="galleryCaptionTitle"></p>
+          <p class="sub-line" id="galleryCaptionSub"></p>
           <div class="desc" id="galleryCaptionDesc"></div>
         </div>
 
@@ -294,9 +280,11 @@
             <span>+ Click or Paste Main Image (Ctrl+V)</span>
             <input id="mainImageInput" type="file" accept="image/*">
           </label>
-          <label class="field">Title <input id="buildingNameInput" type="text" placeholder="Project Title" required></label>
-          <label class="field">Info <input id="architectInput" type="text" placeholder="Year / Data" required></label>
-          <label class="field">Location Coordinates (Lat, Lng) <input id="coordsInput" type="text" placeholder="e.g., 37.5665, 126.9780 (Seoul)" value="37.5665, 126.9780"></label>
+          <label class="field">Building Name <input id="buildingNameInput" type="text" placeholder="KANSONG ART MUSEUM" required></label>
+          <label class="field">Architect / Designer <input id="architectInput" type="text" placeholder="Minwoo Im, LiJiao Shan" required></label>
+          <label class="field">Location & Year <input id="locationYearInput" type="text" placeholder="Daegu, 2026" required></label>
+          <label class="field">Location Coordinates (Lat, Lng) <input id="coordsInput" type="text" placeholder="35.845, 128.625" value="35.845, 128.625"></label>
+          <label class="field">Description <textarea id="descInput" rows="3" placeholder="Detailed architectural description..."></textarea></label>
           <div class="modal-actions">
             <button id="cancelProject" type="button">Cancel</button>
             <button class="submit-project" type="submit">Create</button>
@@ -313,15 +301,16 @@
           <button class="modal-close" id="closeEditModalBtn" type="button">×</button>
         </header>
         <form class="project-form" id="editProjectForm">
-          <label class="image-field" id="editImageField" style="height: 120px;">
+          <label class="image-field" id="editImageField" style="height: 100px;">
             <span class="image-preview" id="editImagePreview"></span>
             <span>+ Add Slide Image (Optional / Ctrl+V)</span>
             <input id="editSlideImageInput" type="file" accept="image/*">
           </label>
-          <label class="field">Title <input id="editTitleInput" type="text" required></label>
-          <label class="field">Info <input id="editInfoInput" type="text" required></label>
-          <label class="field">Location Coordinates (Lat, Lng) <input id="editCoordsInput" type="text" placeholder="37.5665, 126.9780"></label>
-          <label class="field" style="margin-top: 5px;">Description <textarea id="editDescInput" rows="5" placeholder="Detailed architectural description..."></textarea></label>
+          <label class="field">Building Name <input id="editTitleInput" type="text" required></label>
+          <label class="field">Architect / Designer <input id="editArchitectInput" type="text" required></label>
+          <label class="field">Location & Year <input id="editLocationYearInput" type="text" required></label>
+          <label class="field">Location Coordinates <input id="editCoordsInput" type="text"></label>
+          <label class="field">Description <textarea id="editDescInput" rows="4"></textarea></label>
           <div class="modal-actions">
             <button id="cancelEditProject" type="button">Cancel</button>
             <button class="submit-project" type="submit">Save Changes</button>
@@ -369,20 +358,22 @@
       "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=700&q=80"
     ];
 
-    const storageKey = "archive-projects-v11";
-    const currentGroupStorageKey = "archive-current-group-v11";
+    const storageKey = "archive-projects-v12";
+    const currentGroupStorageKey = "archive-current-group-v12";
     const defaultGroupCode = "ARCHIVE-DEMO";
 
-    const defaultProjects = Array.from({ length: 6 }, (_, i) => ({
-      id: crypto.randomUUID(),
-      title: "Sample Architecture", sub: "Seoul, 2026", description: "This is a detailed description of the project.",
-      coords: "37.5665, 126.9780",
-      photo: photoStyles[i % photoStyles.length], 
-      items: [
-        { type: "photo", src: photoStyles[(i+1) % photoStyles.length] },
-        { type: "photo", src: photoStyles[(i+2) % photoStyles.length] }
-      ]
-    }));
+    const defaultProjects = [
+      {
+        id: crypto.randomUUID(),
+        title: "KANSONG ART MUSEUM",
+        architect: "Minwoo Im, LiJiao Shan",
+        locationYear: "Daegu, 2026",
+        description: "Kansong Art Museum designed by Minwoo Im and LiJiao Shan in Daegu, 2026.",
+        coords: "35.845, 128.625",
+        photo: photoStyles[0],
+        items: [{ type: "photo", src: photoStyles[1] }]
+      }
+    ];
 
     let currentGroupCode = localStorage.getItem(currentGroupStorageKey) || defaultGroupCode;
     let projects = loadLocalProjects();
@@ -394,7 +385,6 @@
     let uploadedProjectImage = "";
     let uploadedSlideImage = "";
 
-    // 지도 인스턴스 전역 관리
     let map = null;
     let mapMarkers = [];
 
@@ -486,7 +476,7 @@
     function groupProjectKey(code) { return `${storageKey}:${code}`; }
 
     // -----------------------------------------------------
-    // 지도(Map View) 모달 제어 및 마커 렌더링
+    // 지도 모달 제어
     // -----------------------------------------------------
     document.getElementById("openMapBtn").addEventListener("click", () => {
       document.body.classList.add("map-mode");
@@ -494,11 +484,9 @@
       
       setTimeout(() => {
         if (!map) {
-          // 옅은 회색 라인의 모노톤 도면 스타일 지도 타일 적용 (CartoDB Positron)
-          map = L.map('mapContainer', { zoomControl: false }).setView([37.5665, 126.9780], 3);
+          map = L.map('mapContainer', { zoomControl: false }).setView([35.845, 128.625], 6);
           L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19,
-            subdomains: 'abcd'
+            maxZoom: 19, subdomains: 'abcd'
           }).addTo(map);
         } else {
           map.invalidateSize();
@@ -513,7 +501,6 @@
     });
 
     function renderMapMarkers() {
-      // 기존 마커 초기화
       mapMarkers.forEach(m => m.remove());
       mapMarkers = [];
 
@@ -522,7 +509,6 @@
         const parts = p.coords.split(',').map(s => parseFloat(s.trim()));
         if (parts.length !== 2 || isNaN(parts[0]) || isNaN(parts[1])) return;
 
-        // 대지 분석 및 십자선(+) 아이콘 생성
         const crosshairIcon = L.divIcon({
           className: 'custom-crosshair-marker',
           html: '+',
@@ -532,17 +518,15 @@
 
         const marker = L.marker([parts[0], parts[1]], { icon: crosshairIcon }).addTo(map);
         
-        // 팝업 카드 구성
         const popupContent = `
           <div>
             <img src="${p.photo}" alt="${p.title}" />
             <strong>${p.title}</strong><br>
-            <span style="color:#999;">${p.sub}</span>
+            <span style="color:#999;">${p.architect}</span>
           </div>
         `;
         marker.bindPopup(popupContent, { closeButton: false, offset: [0, -6] });
 
-        // 마커 클릭 시 해당 프로젝트 상세 페이지로 바로 진입
         marker.on('click', () => {
           mapView.classList.remove("is-open");
           document.body.classList.remove("map-mode");
@@ -580,7 +564,9 @@
         list.appendChild(li);
       });
 
-      document.getElementById("galleryCaptionTitle").innerHTML = `${project.title}. ${project.sub}`;
+      // 상세 페이지 좌하단 정보 배치
+      document.getElementById("galleryCaptionTitle").innerHTML = `${project.title}`;
+      document.getElementById("galleryCaptionSub").innerHTML = `${project.architect} &nbsp;/&nbsp; ${project.locationYear}`;
       document.getElementById("galleryCaptionDesc").textContent = project.description || "";
       
       currentSlideIndex = 0;
@@ -648,7 +634,8 @@
       editImagePreview.style.backgroundImage = "";
       
       document.getElementById("editTitleInput").value = activeProject.title || "";
-      document.getElementById("editInfoInput").value = activeProject.sub || "";
+      document.getElementById("editArchitectInput").value = activeProject.architect || "";
+      document.getElementById("editLocationYearInput").value = activeProject.locationYear || "";
       document.getElementById("editCoordsInput").value = activeProject.coords || "";
       document.getElementById("editDescInput").value = activeProject.description || "";
       
@@ -660,7 +647,8 @@
       if(!activeProject) return;
 
       activeProject.title = document.getElementById("editTitleInput").value.trim();
-      activeProject.sub = document.getElementById("editInfoInput").value.trim();
+      activeProject.architect = document.getElementById("editArchitectInput").value.trim();
+      activeProject.locationYear = document.getElementById("editLocationYearInput").value.trim();
       activeProject.coords = document.getElementById("editCoordsInput").value.trim();
       activeProject.description = document.getElementById("editDescInput").value.trim();
 
@@ -691,7 +679,7 @@
     buttonClick(document.getElementById("cancelEditProject"), () => editProjectModal.classList.remove("is-open"));
 
     // -----------------------------------------------------
-    // 메인 화면 로직
+    // 메인 화면 로직 (첫화면 캡션: 이름과 건축가만 노출)
     // -----------------------------------------------------
     function renderProjects() { 
       const kw = document.getElementById("searchInput").value.trim().toLowerCase();
@@ -702,7 +690,7 @@
         }
       });
       
-      projects.filter(p => `${p.title} ${p.sub}`.toLowerCase().includes(kw))
+      projects.filter(p => `${p.title} ${p.architect}`.toLowerCase().includes(kw))
               .forEach((p, i) => { 
                 const li = document.createElement("li");
                 li.innerHTML = `
@@ -711,7 +699,7 @@
                   </a>
                   <a class="caption" href="javascript:void(0);">
                     <p>${p.title}</p>
-                    <p>${p.sub}</p>
+                    <p>${p.architect}</p>
                   </a>
                   <span class="delete-project-btn">✕</span>
                 `;
@@ -729,9 +717,10 @@
       projects.unshift({ 
         id: crypto.randomUUID(), 
         title: document.getElementById("buildingNameInput").value.trim(), 
-        sub: document.getElementById("architectInput").value.trim(), 
+        architect: document.getElementById("architectInput").value.trim(), 
+        locationYear: document.getElementById("locationYearInput").value.trim(),
         coords: document.getElementById("coordsInput").value.trim(),
-        description: "",
+        description: document.getElementById("descInput").value.trim(),
         photo: uploadedProjectImage || photoStyles[projects.length % photoStyles.length], 
         items: [] 
       });

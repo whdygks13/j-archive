@@ -95,7 +95,6 @@
     .map-header { height: 60px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f0; background: rgba(255,255,255,0.95); z-index: 10; }
     #mapContainer { flex: 1; width: 100%; background: #fbfbfb; }
 
-    /* 건축물 마커(+) & 전시 마커(×) 공통 스타일 */
     .custom-crosshair-marker { background: transparent; border: none; font-size: 18px; font-weight: normal; color: #111; display: flex; align-items: center; justify-content: center; user-select: none; text-shadow: 0 0 2px #fff; }
 
     .leaflet-popup-content-wrapper { background: #fff; border-radius: 0px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #eee; padding: 4px; pointer-events: none; }
@@ -265,7 +264,7 @@
           </label>
           <label class="field"><span id="lblAdd1">Building Name</span> <input id="addInput1" type="text" required></label>
           <label class="field"><span id="lblAdd2">Architect / Designer</span> <input id="addInput2" type="text" required></label>
-          <label class="field"><span id="lblAdd3">Location & Year</span> <input id="addInput3" type="text" required></label>
+          <label class="field"><span id="lblAdd3">Location & Date</span> <input id="addInput3" type="text" required></label>
           <label class="field">Location Coordinates (Lat, Lng) <input id="addInput4" type="text" placeholder="35.845, 128.625"></label>
           <label class="field">Description <textarea id="addInput5" rows="3" placeholder="Detailed description..."></textarea></label>
           <div class="modal-actions">
@@ -284,7 +283,6 @@
           <button class="modal-close" id="closeEditModalBtn" type="button">×</button>
         </header>
         <form class="project-form" id="editProjectForm">
-          <!-- 멀티 업로드 지원 영역 -->
           <label class="image-field" id="editImageField" style="height: 100px;">
             <span class="image-preview" id="editImagePreview"></span>
             <span>+ Add Slide Images (Paste multiple times or Select)</span>
@@ -294,7 +292,7 @@
 
           <label class="field"><span id="lblEdit1">Building Name</span> <input id="editInput1" type="text" required></label>
           <label class="field"><span id="lblEdit2">Architect / Designer</span> <input id="editInput2" type="text" required></label>
-          <label class="field"><span id="lblEdit3">Location & Year</span> <input id="editInput3" type="text" required></label>
+          <label class="field"><span id="lblEdit3">Location & Date</span> <input id="editInput3" type="text" required></label>
           <label class="field">Location Coordinates <input id="editInput4" type="text"></label>
           <label class="field">Description <textarea id="editInput5" rows="4"></textarea></label>
           <div class="modal-actions">
@@ -308,7 +306,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
     const firebaseConfig = {
@@ -343,11 +341,10 @@
     const storageKey = "archive-data-v17";
     const currentGroupCode = "ARCHIVE-DEMO";
 
-    // 데이터베이스 분리 (건축용 / 전시용)
+    // 데이터베이스 분리
     let archProjects = [];
     let exhiProjects = [];
     
-    // 현재 접속 차원 ('a': Architecture, 'e': Exhibition)
     let currentRealm = 'a'; 
     let activeProject = null;
     let isInteracting = false; 
@@ -363,32 +360,6 @@
 
     function getCurrentData() { return currentRealm === 'a' ? archProjects : exhiProjects; }
 
-    // 🔥 예전 버전(v16 이전)의 건축 데이터를 안전하게 불러오는 마이그레이션(복구) 함수 🔥
-    function recoverLegacyData() {
-      const legacyKeys = ["archive-projects-v16", "archive-projects-v15", "archive-projects-v14", "archive-projects-v13", "archive-projects-v12", "archive-projects-v11", "archive-projects-v10", "trace-archive-projects-v10"];
-      for(let key of legacyKeys) {
-        const oldData = localStorage.getItem(key);
-        if (oldData) {
-          const parsedOld = JSON.parse(oldData);
-          if (Array.isArray(parsedOld) && parsedOld.length > 0) {
-            archProjects = parsedOld.map(p => ({
-              id: p.id,
-              field1: p.title || '',
-              field2: p.architect || '',
-              field3: p.locationYear || p.sub || '', 
-              coords: p.coords || '',
-              desc: p.description || '',
-              photo: p.photo,
-              items: p.items || []
-            }));
-            saveData(); // 복구 완료 시 최신 포맷으로 저장
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
     function loadLocalData() { 
       try { 
         const saved = localStorage.getItem(storageKey); 
@@ -396,16 +367,56 @@
           const parsed = JSON.parse(saved);
           archProjects = parsed.archProjects || [];
           exhiProjects = parsed.exhiProjects || [];
-          
-          // 데이터가 텅 비었다면 (처음 개편 코드를 받았을 때) 예전 자료 복구 시도
-          if (archProjects.length === 0 && exhiProjects.length === 0) {
-             recoverLegacyData();
-          }
-        } else {
-          // 아예 v17 스토리지가 없다면 예전 자료 복구 시도
-          recoverLegacyData();
         }
       } catch (e) { } 
+    }
+
+    // 🔥 클라우드 원본 저장소에서 예전 건축 데이터를 강제 복구하는 로직 🔥
+    async function recoverFromCloudDB() {
+      if (!isCloudConnected) return;
+      try {
+        const oldRef = doc(db, "archive_groups", currentGroupCode);
+        const oldSnap = await getDoc(oldRef);
+        if (oldSnap.exists()) {
+          const oldData = oldSnap.data().projects;
+          if (oldData && oldData.length > 0) {
+            archProjects = oldData.map(p => ({
+              id: p.id,
+              field1: p.title || '',
+              field2: p.architect || '',
+              field3: p.locationYear || p.sub || '',
+              coords: p.coords || '',
+              desc: p.description || '',
+              photo: p.photo,
+              items: p.items || []
+            }));
+            await setDoc(doc(db, "archive_core", currentGroupCode), { archProjects: archProjects, exhiProjects: exhiProjects });
+            alert("클라우드 원본 저장소에서 기존 건축 자료를 성공적으로 복구했습니다! 🎉\n(이전 서랍에서 새 서랍으로 안전하게 이동 완료)");
+            renderProjects();
+          }
+        }
+      } catch (err) {
+        console.error("클라우드 복구 실패:", err);
+      }
+    }
+
+    // 초기화 및 실시간 리스너 연결
+    async function initData() {
+      loadLocalData();
+      updateRealmUI();
+
+      if (isCloudConnected) {
+         // 새 데이터베이스(archive_core) 상태 확인
+         const coreSnap = await getDoc(doc(db, "archive_core", currentGroupCode));
+         // 새 데이터베이스가 비어있다면 구 데이터베이스(archive_groups)에서 복구 시도
+         if (!coreSnap.exists() || (coreSnap.data().archProjects?.length === 0 && coreSnap.data().exhiProjects?.length === 0)) {
+            await recoverFromCloudDB();
+         }
+      }
+      
+      // 복구 완료 후 실시간 동기화 시작
+      listenToCloud();
+      renderProjects();
     }
 
     let unsub = null;
@@ -426,11 +437,6 @@
               const updatedActive = curData.find(p => p.id === activeProject.id);
               if (updatedActive) { activeProject = updatedActive; renderGallery(activeProject); }
             }
-          }
-        } else {
-          // 클라우드 문서가 아예 없는 초기 상태라면, 로컬에 복구해둔 데이터를 클라우드로 밀어올림
-          if (archProjects.length > 0 || exhiProjects.length > 0) {
-            saveData();
           }
         }
       });
@@ -470,7 +476,7 @@
       
       const lbl1 = currentRealm === 'a' ? 'Building Name' : 'Title';
       const lbl2 = currentRealm === 'a' ? 'Architect / Designer' : 'Curator / Speaker';
-      const lbl3 = currentRealm === 'a' ? 'Location & Year' : 'Location & Date';
+      const lbl3 = currentRealm === 'a' ? 'Location & Date' : 'Location & Date';
       
       const ph1 = currentRealm === 'a' ? 'KANSONG ART MUSEUM' : 'Special Exhibition / Seminar';
       const ph2 = currentRealm === 'a' ? 'Minwoo Im, LiJiao Shan' : 'Jane Doe';
@@ -531,7 +537,6 @@
       }
     });
 
-    // 지도 띄우기
     document.getElementById("gatewayMap").addEventListener("click", () => {
       document.body.classList.add("map-mode");
       mapView.classList.add("is-open");
@@ -861,10 +866,7 @@
     });
 
     // 시작 시 호출
-    loadLocalData();
-    updateRealmUI();
-    listenToCloud(); 
-    renderProjects(); 
+    initData();
   </script>
 </body>
 </html>

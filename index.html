@@ -284,6 +284,7 @@
           <button class="modal-close" id="closeEditModalBtn" type="button">×</button>
         </header>
         <form class="project-form" id="editProjectForm">
+          <!-- 멀티 업로드 지원 영역 -->
           <label class="image-field" id="editImageField" style="height: 100px;">
             <span class="image-preview" id="editImagePreview"></span>
             <span>+ Add Slide Images (Paste multiple times or Select)</span>
@@ -360,8 +361,52 @@
     let map = null;
     let mapMarkers = [];
 
-    // 현재 세계에 맞는 데이터 배열 반환
     function getCurrentData() { return currentRealm === 'a' ? archProjects : exhiProjects; }
+
+    // 🔥 예전 버전(v16 이전)의 건축 데이터를 안전하게 불러오는 마이그레이션(복구) 함수 🔥
+    function recoverLegacyData() {
+      const legacyKeys = ["archive-projects-v16", "archive-projects-v15", "archive-projects-v14", "archive-projects-v13", "archive-projects-v12", "archive-projects-v11", "archive-projects-v10", "trace-archive-projects-v10"];
+      for(let key of legacyKeys) {
+        const oldData = localStorage.getItem(key);
+        if (oldData) {
+          const parsedOld = JSON.parse(oldData);
+          if (Array.isArray(parsedOld) && parsedOld.length > 0) {
+            archProjects = parsedOld.map(p => ({
+              id: p.id,
+              field1: p.title || '',
+              field2: p.architect || '',
+              field3: p.locationYear || p.sub || '', 
+              coords: p.coords || '',
+              desc: p.description || '',
+              photo: p.photo,
+              items: p.items || []
+            }));
+            saveData(); // 복구 완료 시 최신 포맷으로 저장
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function loadLocalData() { 
+      try { 
+        const saved = localStorage.getItem(storageKey); 
+        if(saved) {
+          const parsed = JSON.parse(saved);
+          archProjects = parsed.archProjects || [];
+          exhiProjects = parsed.exhiProjects || [];
+          
+          // 데이터가 텅 비었다면 (처음 개편 코드를 받았을 때) 예전 자료 복구 시도
+          if (archProjects.length === 0 && exhiProjects.length === 0) {
+             recoverLegacyData();
+          }
+        } else {
+          // 아예 v17 스토리지가 없다면 예전 자료 복구 시도
+          recoverLegacyData();
+        }
+      } catch (e) { } 
+    }
 
     let unsub = null;
     function listenToCloud() {
@@ -382,19 +427,13 @@
               if (updatedActive) { activeProject = updatedActive; renderGallery(activeProject); }
             }
           }
+        } else {
+          // 클라우드 문서가 아예 없는 초기 상태라면, 로컬에 복구해둔 데이터를 클라우드로 밀어올림
+          if (archProjects.length > 0 || exhiProjects.length > 0) {
+            saveData();
+          }
         }
       });
-    }
-
-    function loadLocalData() { 
-      try { 
-        const saved = localStorage.getItem(storageKey); 
-        if(saved) {
-          const parsed = JSON.parse(saved);
-          archProjects = parsed.archProjects || [];
-          exhiProjects = parsed.exhiProjects || [];
-        }
-      } catch (e) { } 
     }
     
     async function saveData() { 
@@ -426,11 +465,9 @@
     // 평행 세계(Realm) 스위칭 UI 로직
     // =========================================================
     function updateRealmUI() {
-      // 타이틀 업데이트
       document.getElementById("mainBrandName").textContent = currentRealm === 'a' ? 'ARCHIVE // a' : 'ARCHIVE // e';
       document.getElementById("mapBrandName").textContent = currentRealm === 'a' ? 'ARCHIVE // a // GEOGRAPHY' : 'ARCHIVE // e // GEOGRAPHY';
       
-      // 폼 라벨 및 플레이스홀더 업데이트
       const lbl1 = currentRealm === 'a' ? 'Building Name' : 'Title';
       const lbl2 = currentRealm === 'a' ? 'Architect / Designer' : 'Curator / Speaker';
       const lbl3 = currentRealm === 'a' ? 'Location & Year' : 'Location & Date';
@@ -450,19 +487,17 @@
       document.getElementById('lblEdit2').textContent = lbl2;
       document.getElementById('lblEdit3').textContent = lbl3;
       
-      // 모달 타이틀 업데이트
       document.getElementById("addModalHeader").textContent = currentRealm === 'a' ? 'Add Project' : 'Add Exhibition / Forum';
       document.getElementById("addProject").textContent = currentRealm === 'a' ? 'Add Project' : 'Add Event';
     }
 
     document.getElementById("gatewaySwitch").addEventListener("click", () => {
       currentRealm = currentRealm === 'a' ? 'e' : 'a';
-      document.getElementById("searchInput").value = ""; // 검색어 초기화
+      document.getElementById("searchInput").value = ""; 
       updateRealmUI();
       renderProjects();
     });
 
-    // 다중 파일 붙여넣기 기능
     document.addEventListener("paste", e => {
       if (e.target.tagName.toLowerCase() === 'textarea' && !editProjectModal.classList.contains("is-open")) return; 
       if (e.target.tagName.toLowerCase() === 'input' && e.target.type === 'text') return; 
@@ -519,7 +554,6 @@
       document.body.classList.remove("map-mode");
     });
 
-    // 현재 차원에 맞는 지도 마커 렌더링
     function renderMapMarkers() {
       mapMarkers.forEach(m => m.remove());
       mapMarkers = [];
@@ -530,7 +564,6 @@
         const parts = p.coords.split(',').map(s => parseFloat(s.trim()));
         if (parts.length !== 2 || isNaN(parts[0]) || isNaN(parts[1])) return;
 
-        // 차원별 마커 심볼 구분 (+ vs ×)
         const markerSymbol = currentRealm === 'a' ? '+' : '×';
 
         const customIcon = L.divIcon({
@@ -565,7 +598,6 @@
       });
     }
 
-    // 갤러리 진입/이탈 로직
     function openGallery(project) {
       activeProject = project;
       document.body.classList.replace('main', 'project');
@@ -655,9 +687,6 @@
       }
     });
 
-    // -----------------------------------------------------
-    // Edit Modal (다중 업로드)
-    // -----------------------------------------------------
     function buttonClick(btn, fn) { btn.addEventListener("click", fn); }
 
     buttonClick(document.getElementById("openEditModalBtn"), () => {
@@ -732,14 +761,10 @@
     buttonClick(document.getElementById("closeEditModalBtn"), () => editProjectModal.classList.remove("is-open"));
     buttonClick(document.getElementById("cancelEditProject"), () => editProjectModal.classList.remove("is-open"));
 
-    // -----------------------------------------------------
-    // 메인 화면 로직 (현재 차원 필터링)
-    // -----------------------------------------------------
     function renderProjects() { 
       const kw = document.getElementById("searchInput").value.trim().toLowerCase();
       const curData = getCurrentData();
 
-      // 게이트웨이만 남기고 나머지 목록 초기화
       Array.from(projectGrid.children).forEach(child => {
         if (!child.classList.contains('gateway')) {
           child.remove();
@@ -770,7 +795,6 @@
                 li.querySelector(".picture").addEventListener("click", () => { openedFromMap = false; openGallery(p); });
                 li.querySelector(".caption").addEventListener("click", () => { openedFromMap = false; openGallery(p); });
                 
-                // 생성된 카드를 부모의 맨 뒤에 붙임 (게이트웨이 뒤로 차곡차곡 쌓임)
                 projectGrid.appendChild(li); 
               }); 
     }
@@ -836,6 +860,7 @@
       r.readAsDataURL(f); 
     });
 
+    // 시작 시 호출
     loadLocalData();
     updateRealmUI();
     listenToCloud(); 

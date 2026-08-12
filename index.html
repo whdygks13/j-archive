@@ -283,6 +283,7 @@
           <button class="modal-close" id="closeEditModalBtn" type="button">×</button>
         </header>
         <form class="project-form" id="editProjectForm">
+          <!-- 멀티 업로드 지원 영역 -->
           <label class="image-field" id="editImageField" style="height: 100px;">
             <span class="image-preview" id="editImagePreview"></span>
             <span>+ Add Slide Images (Paste multiple times or Select)</span>
@@ -390,6 +391,14 @@
               photo: p.photo,
               items: p.items || []
             }));
+            
+            // 로컬 스토리지 에러 방지 (용량이 너무 크면 브라우저 캐시는 패스하고 클라우드에만 덮어씀)
+            try {
+              localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects }));
+            } catch (err) {
+              localStorage.removeItem(storageKey);
+            }
+
             await setDoc(doc(db, "archive_core", currentGroupCode), { archProjects: archProjects, exhiProjects: exhiProjects });
             alert("클라우드 원본 저장소에서 기존 건축 자료를 성공적으로 복구했습니다! 🎉\n(이전 서랍에서 새 서랍으로 안전하게 이동 완료)");
             renderProjects();
@@ -414,7 +423,6 @@
          }
       }
       
-      // 복구 완료 후 실시간 동기화 시작
       listenToCloud();
       renderProjects();
     }
@@ -429,7 +437,12 @@
           if (!isInteracting) {
             archProjects = data.archProjects || [];
             exhiProjects = data.exhiProjects || [];
-            localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects }));
+            
+            try {
+              localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects }));
+            } catch(e) {
+              localStorage.removeItem(storageKey); // 꽉차면 캐시 삭제
+            }
             
             renderProjects();
             if (activeProject) {
@@ -442,12 +455,25 @@
       });
     }
     
+    // 🔥 저장 로직 분리 (로컬 스토리지 에러 무시하고 클라우드에 강제 저장) 🔥
     async function saveData() { 
       try {
         localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects })); 
-        if (isCloudConnected) await setDoc(doc(db, "archive_core", currentGroupCode), { archProjects, exhiProjects });
       } catch (e) {
-        alert("저장 중 오류가 발생했습니다: " + e.message);
+        localStorage.removeItem(storageKey);
+        console.warn("브라우저 로컬 저장소 용량 초과. 캐시를 비우고 클라우드에 저장합니다.");
+      }
+
+      try {
+        if (isCloudConnected) {
+          await setDoc(doc(db, "archive_core", currentGroupCode), { archProjects, exhiProjects });
+        }
+      } catch (e) {
+        if (e.message.includes('quota') || e.message.includes('exceeds')) {
+          alert("파이어베이스 문서 데이터 용량 제한(1MB)을 초과했습니다. 기존 자료 중 일부를 삭제해야 합니다.");
+        } else {
+          alert("클라우드 저장 중 오류가 발생했습니다: " + e.message);
+        }
       }
     }
 

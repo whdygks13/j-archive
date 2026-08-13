@@ -57,6 +57,10 @@
     .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccc; }
     .sync-dot.is-online { background: #4CAF50; box-shadow: 0 0 6px rgba(76, 175, 80, 0.4); }
 
+    /* 임시 강제 복구 버튼 스타일 */
+    #forceRecoverBtn { font-size: 9pt; background: #d71920; color: #fff; padding: 4px 10px; border-radius: 2px; border: none; cursor: pointer; transition: background 0.2s; }
+    #forceRecoverBtn:hover { background: #b01015; }
+
     #wrapper { max-width:1200px; margin:100px auto; padding-bottom:50px; position:relative; min-width:610px; }
     #main_image_list { position:relative; top:-50px; margin:0 auto; overflow: hidden; }
     
@@ -186,6 +190,10 @@
       </div>
       <div class="search-row">
         <label class="search"><input id="searchInput" type="search" placeholder="Search..."></label>
+        
+        <!-- 🔥 여기에 임시 복구 버튼 추가! 🔥 -->
+        <button id="forceRecoverBtn" type="button">데이터 강제 복구</button>
+        
         <button class="add-project" id="addProject" type="button">Add Project</button>
         <div class="sync-status" id="syncStatus">
           <span class="sync-dot" id="syncDot"></span> <span id="syncText">Cloud Storage Sync</span>
@@ -196,7 +204,6 @@
     <!-- Main Image List -->
     <div id="wrapper">
       <ul id="main_image_list" class="eng">
-        <!-- 듀얼 게이트웨이 -->
         <li class="gateway" id="gatewayMap"><a href="javascript:void(0);" title="Open Map">·</a></li>
         <li class="gateway" id="gatewaySwitch"><a href="javascript:void(0);" title="Switch Realm">...</a></li>
       </ul>
@@ -370,7 +377,6 @@
       } catch (e) { } 
     }
 
-    // 🔥 핵심 해결 코드: 무거운 텍스트(Base64) 이미지를 찾아 진짜 파일로 클라우드에 업로드하고 가벼운 주소로 바꿔치기
     async function uploadBase64ToStorage(base64String) {
       try {
         const response = await fetch(base64String);
@@ -380,13 +386,18 @@
         return await getDownloadURL(snapshot.ref);
       } catch (e) {
         console.error("최적화 실패", e);
-        return base64String; // 실패하면 원본 유지
+        return base64String; 
       }
     }
 
-    // 예전 데이터베이스에서 꺼내오면서 다이어트(최적화) 진행
+    // 🔥 수동 강제 복구 버튼 이벤트 연결
+    document.getElementById("forceRecoverBtn").addEventListener("click", async () => {
+      if(!confirm("기존 아카이브 자료들을 클라우드에서 불러와 최적화를 진행할까요?\n\n(완료될 때까지 창을 닫지 말아주세요!)")) return;
+      await recoverFromCloudDB();
+    });
+
     async function recoverFromCloudDB() {
-      if (!isCloudConnected) return;
+      if (!isCloudConnected) return alert("클라우드에 연결되지 않았습니다.");
       try {
         const oldRef = doc(db, "archive_groups", currentGroupCode);
         const oldSnap = await getDoc(oldRef);
@@ -394,7 +405,12 @@
           const oldData = oldSnap.data().projects;
           if (oldData && oldData.length > 0) {
             
-            // 🚨 최적화 시작 알림
+            // 시각적 피드백
+            const btn = document.getElementById("forceRecoverBtn");
+            btn.textContent = "최적화 진행중... (대기)";
+            btn.style.background = "#999";
+            btn.disabled = true;
+
             alert("용량 초과 방지를 위해 무거운 옛날 사진들을 클라우드로 옮기는 최적화 작업을 시작합니다.\n\n사진 개수에 따라 10초 ~ 1분 정도 소요될 수 있습니다. '완료 알림'이 뜰 때까지 브라우저 창을 닫지 말고 잠시만 기다려주세요!");
             
             let optimizedProjects = [];
@@ -402,13 +418,11 @@
             for (let i = 0; i < oldData.length; i++) {
               let p = oldData[i];
               
-              // 메인 커버 사진이 Base64 텍스트로 뭉쳐있다면 파일로 빼내어 업로드
               let newPhotoUrl = p.photo;
               if (newPhotoUrl && newPhotoUrl.startsWith('data:image')) {
                 newPhotoUrl = await uploadBase64ToStorage(newPhotoUrl);
               }
 
-              // 갤러리 서브 사진들도 검사하여 업로드
               let optimizedItems = [];
               if (p.items && p.items.length > 0) {
                 for (let j = 0; j < p.items.length; j++) {
@@ -432,34 +446,40 @@
               });
             }
 
-            archProjects = optimizedProjects;
+            // 테스트로 추가했던 프로젝트가 있다면 뒤로 밀리지 않게 기존 데이터와 합치기
+            const existingIds = new Set(archProjects.map(p => p.id));
+            const newToAdd = optimizedProjects.filter(p => !existingIds.has(p.id));
+            archProjects = [...newToAdd, ...archProjects];
             
-            // 캐시 에러 무시
             try { localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects })); } catch (err) { localStorage.removeItem(storageKey); }
 
-            // 완벽하게 다이어트된 가벼운 데이터를 새 시스템에 저장!
             await setDoc(doc(db, "archive_core", currentGroupCode), { archProjects: archProjects, exhiProjects: exhiProjects });
             
+            btn.textContent = "데이터 강제 복구";
+            btn.style.background = "#d71920";
+            btn.disabled = false;
+
             alert("✅ 모든 옛날 자료가 가볍게 최적화되어 복구 완료되었습니다!\n이제 용량 제한 없이 자유롭게 사용하실 수 있습니다.");
             renderProjects();
+          } else {
+            alert("이전 저장소에 복구할 데이터가 없습니다.");
           }
+        } else {
+          alert("이전 저장소(archive_groups) 문서가 존재하지 않습니다.");
         }
       } catch (err) {
         console.error("클라우드 복구 및 최적화 실패:", err);
+        alert("복구 중 에러가 발생했습니다: " + err.message);
+        const btn = document.getElementById("forceRecoverBtn");
+        btn.textContent = "데이터 강제 복구";
+        btn.style.background = "#d71920";
+        btn.disabled = false;
       }
     }
 
     async function initData() {
       loadLocalData();
       updateRealmUI();
-
-      if (isCloudConnected) {
-         const coreSnap = await getDoc(doc(db, "archive_core", currentGroupCode));
-         if (!coreSnap.exists() || (coreSnap.data().archProjects?.length === 0 && coreSnap.data().exhiProjects?.length === 0)) {
-            await recoverFromCloudDB();
-         }
-      }
-      
       listenToCloud();
       renderProjects();
     }
@@ -919,7 +939,6 @@
       r.readAsDataURL(f); 
     });
 
-    // 시작 시 호출
     initData();
   </script>
 </body>

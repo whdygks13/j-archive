@@ -51,15 +51,17 @@
     
     .search-row { display: flex; align-items: center; gap: 20px; }
     .search input { width: 150px; border-bottom: 1px solid #ccc; padding: 4px 0; color: #555553; font-size: 9pt; }
-    .add-project { font-size: 9pt; color: #555553; border: 1px solid #ddd; padding: 4px 10px; border-radius: 2px; transition: background 0.2s; }
+    
+    .add-project { font-size: 9pt; color: #555553; border: 1px solid #ddd; padding: 4px 10px; border-radius: 2px; transition: background 0.2s; cursor: pointer; }
     .add-project:hover { background: #f9f9f9; }
+    
+    /* 🔥 통일된 디자인의 복구 버튼 🔥 */
+    #forceRecoverBtn { font-size: 9pt; color: #555553; border: 1px solid #ddd; padding: 4px 10px; border-radius: 2px; transition: background 0.2s; background: transparent; cursor: pointer; }
+    #forceRecoverBtn:hover { background: #f9f9f9; }
+
     .sync-status { font-size: 8pt; color: #999; display: flex; align-items: center; gap: 6px; }
     .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccc; }
     .sync-dot.is-online { background: #4CAF50; box-shadow: 0 0 6px rgba(76, 175, 80, 0.4); }
-
-    /* 임시 강제 복구 버튼 스타일 */
-    #forceRecoverBtn { font-size: 9pt; background: #d71920; color: #fff; padding: 4px 10px; border-radius: 2px; border: none; cursor: pointer; transition: background 0.2s; }
-    #forceRecoverBtn:hover { background: #b01015; }
 
     #wrapper { max-width:1200px; margin:100px auto; padding-bottom:50px; position:relative; min-width:610px; }
     #main_image_list { position:relative; top:-50px; margin:0 auto; overflow: hidden; }
@@ -183,7 +185,6 @@
 </head>
 <body class="main">
   <main class="app">
-    <!-- Topbar -->
     <header class="topbar eng">
       <div class="brand">
         <div class="brand-name" id="mainBrandName">ARCHIVE // a</div>
@@ -191,8 +192,8 @@
       <div class="search-row">
         <label class="search"><input id="searchInput" type="search" placeholder="Search..."></label>
         
-        <!-- 🔥 임시 복구 버튼 (개별 문서 저장 방식 적용) 🔥 -->
-        <button id="forceRecoverBtn" type="button">데이터 강제 복구</button>
+        <!-- 🔥 스타일이 통일되고 영어로 변경된 복구 버튼 -->
+        <button id="forceRecoverBtn" type="button">Recover Data</button>
         
         <button class="add-project" id="addProject" type="button">Add Project</button>
         <div class="sync-status" id="syncStatus">
@@ -201,7 +202,6 @@
       </div>
     </header>
 
-    <!-- Main Image List -->
     <div id="wrapper">
       <ul id="main_image_list" class="eng">
         <li class="gateway" id="gatewayMap"><a href="javascript:void(0);" title="Open Map">·</a></li>
@@ -213,7 +213,6 @@
       </div>
     </div>
 
-    <!-- World Map View -->
     <section class="map-view" id="mapView" aria-label="world map">
       <header class="map-header eng">
         <div class="brand-name" id="mapBrandName">ARCHIVE // a // GEOGRAPHY</div>
@@ -222,7 +221,6 @@
       <div id="mapContainer"></div>
     </section>
 
-    <!-- Internal Project Gallery -->
     <section class="project-view" id="galleryView" aria-label="project gallery">
       <div class="inner_wrapper">
         <div class="btn_go_main_wrapper">
@@ -312,7 +310,6 @@
   </main>
 
   <script type="module">
-    // 🔥 Firebase 개별 문서 저장용 모듈 추가 (collection, deleteDoc 등)
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
@@ -345,12 +342,10 @@
     document.addEventListener("mousedown", () => cursorDot.classList.add("is-pressed"));
     document.addEventListener("mouseup", () => cursorDot.classList.remove("is-pressed"));
 
-    // 현재 접속 차원 ('a': Architecture, 'e': Exhibition)
     let currentRealm = 'a'; 
     let activeProject = null;
     let openedFromMap = false; 
 
-    // 개별 저장(Collection) 방식으로 변경되면서 데이터를 담아둘 로컬 배열
     let archProjects = [];
     let exhiProjects = [];
 
@@ -376,90 +371,113 @@
       }
     }
 
-    // 🔥 수동 강제 복구 (이제 개별 문서 컬렉션 방식으로 저장합니다) 🔥
+    // 🔥 수동 강제 복구 (1번 창고와 2번 창고를 모두 뒤져서 최신 데이터 및 전시 데이터까지 완벽하게 이전)
     document.getElementById("forceRecoverBtn").addEventListener("click", async () => {
-      if(!confirm("기존 아카이브 자료들을 클라우드에서 불러와 영구적인 '개별 문서' 시스템으로 마이그레이션 합니다.\n\n(완료될 때까지 창을 닫지 말아주세요!)")) return;
-      await recoverFromCloudDB();
+      if(!confirm("Recover and optimize data from all previous storages? (Please keep the window open until completed)")) return;
+      await recoverFromAllCloudDBs();
     });
 
-    async function recoverFromCloudDB() {
-      if (!isCloudConnected) return alert("클라우드에 연결되지 않았습니다.");
+    async function recoverFromAllCloudDBs() {
+      if (!isCloudConnected) return alert("Not connected to Cloud.");
       try {
+        const btn = document.getElementById("forceRecoverBtn");
+        btn.textContent = "Recovering... (Wait)";
+        btn.style.pointerEvents = "none";
+        btn.style.opacity = "0.5";
+
+        alert("Starting data recovery and optimization from ALL previous storages. This may take a minute. Please do not close the window.");
+        
+        let allArch = [];
+        let allExhi = [];
+
+        // 1. 오래된 창고 (archive_groups) 긁어오기
         const oldRef = doc(db, "archive_groups", "ARCHIVE-DEMO");
         const oldSnap = await getDoc(oldRef);
-        
         if (oldSnap.exists()) {
-          const oldData = oldSnap.data().projects;
-          if (oldData && oldData.length > 0) {
-            
-            const btn = document.getElementById("forceRecoverBtn");
-            btn.textContent = "시스템 업그레이드 중... (대기)";
-            btn.style.background = "#999";
-            btn.disabled = true;
-
-            alert("1MB 용량 한계를 없애기 위해 데이터를 '개별 문서'로 분리 저장하는 업그레이드 작업을 시작합니다.\n\n각각의 파일을 안전하게 저장하므로 시간이 조금 걸립니다. 완료 알림이 뜰 때까지 기다려주세요!");
-            
-            for (let i = 0; i < oldData.length; i++) {
-              let p = oldData[i];
-              
-              let newPhotoUrl = p.photo;
-              if (newPhotoUrl && newPhotoUrl.startsWith('data:image')) {
-                newPhotoUrl = await uploadBase64ToStorage(newPhotoUrl);
-              }
-
-              let optimizedItems = [];
-              if (p.items && p.items.length > 0) {
-                for (let j = 0; j < p.items.length; j++) {
-                  let item = p.items[j];
-                  if (item.src && item.src.startsWith('data:image')) {
-                    item.src = await uploadBase64ToStorage(item.src);
-                  }
-                  optimizedItems.push(item);
-                }
-              }
-
-              const newDoc = {
-                id: p.id,
-                field1: p.title || '',
-                field2: p.architect || '',
-                field3: p.locationYear || p.sub || '',
-                coords: p.coords || '',
-                desc: p.description || '',
-                photo: newPhotoUrl,
-                items: optimizedItems,
-                createdAt: Date.now() - (i * 1000) // 순서 유지를 위한 가짜 타임스탬프
-              };
-
-              // 🔥 1MB 한계를 없애는 핵심: 한 바구니가 아니라 "archive_a"라는 컬렉션 안에 개별 ID로 각각 저장!
-              await setDoc(doc(db, "archive_a", p.id), newDoc);
-            }
-
-            btn.style.display = "none"; // 복구가 끝나면 버튼은 완전히 숨김 처리
-            alert("✅ 시스템 업그레이드 및 모든 데이터 복구 완벽하게 성공!\n이제 무제한으로 프로젝트를 추가하실 수 있습니다.");
-          } else {
-            alert("이전 저장소에 복구할 데이터가 없습니다.");
-          }
-        } else {
-          alert("이전 저장소 문서가 존재하지 않습니다.");
+          const oldData = oldSnap.data().projects || [];
+          allArch = [...allArch, ...oldData];
         }
+
+        // 2. 과도기 창고 (archive_core) 긁어오기
+        const coreRef = doc(db, "archive_core", "ARCHIVE-DEMO");
+        const coreSnap = await getDoc(coreRef);
+        if (coreSnap.exists()) {
+          const coreData = coreSnap.data();
+          if (coreData.archProjects) allArch = [...allArch, ...coreData.archProjects];
+          if (coreData.exhiProjects) allExhi = [...allExhi, ...coreData.exhiProjects];
+        }
+
+        // 3. 중복 제거 (같은 ID를 가진 데이터는 덮어씌워서 1개만 유지)
+        const uniqueArch = Array.from(new Map(allArch.map(item => [item.id, item])).values());
+        const uniqueExhi = Array.from(new Map(allExhi.map(item => [item.id, item])).values());
+
+        if (uniqueArch.length === 0 && uniqueExhi.length === 0) {
+          alert("No data found to recover.");
+          btn.textContent = "Recover Data";
+          btn.style.pointerEvents = "auto";
+          btn.style.opacity = "1";
+          return;
+        }
+
+        // 데이터 최적화 함수 (Base64 이미지 -> URL 변환)
+        const optimizeProject = async (p, realm, index) => {
+          let newPhotoUrl = p.photo;
+          if (newPhotoUrl && newPhotoUrl.startsWith('data:image')) {
+            newPhotoUrl = await uploadBase64ToStorage(newPhotoUrl);
+          }
+          let optimizedItems = [];
+          if (p.items && p.items.length > 0) {
+            for (let j = 0; j < p.items.length; j++) {
+              let item = p.items[j];
+              if (item.src && item.src.startsWith('data:image')) {
+                item.src = await uploadBase64ToStorage(item.src);
+              }
+              optimizedItems.push(item);
+            }
+          }
+          return {
+            id: p.id,
+            field1: p.field1 || p.title || '',
+            field2: p.field2 || p.architect || '',
+            field3: p.field3 || p.locationYear || p.sub || '',
+            coords: p.coords || '',
+            desc: p.desc || p.description || '',
+            photo: newPhotoUrl,
+            items: optimizedItems,
+            createdAt: p.createdAt || (Date.now() - index * 1000)
+          };
+        };
+
+        // 건축물 컬렉션 업데이트
+        for (let i = 0; i < uniqueArch.length; i++) {
+          const optimized = await optimizeProject(uniqueArch[i], 'a', i);
+          await setDoc(doc(db, "archive_a", optimized.id), optimized);
+        }
+
+        // 전시 컬렉션 업데이트
+        for (let i = 0; i < uniqueExhi.length; i++) {
+          const optimized = await optimizeProject(uniqueExhi[i], 'e', i);
+          await setDoc(doc(db, "archive_e", optimized.id), optimized);
+        }
+
+        btn.style.display = "none"; 
+        alert("✅ Data recovery and optimization fully completed!");
+        
       } catch (err) {
-        alert("업그레이드 중 에러가 발생했습니다: " + err.message);
+        console.error("Recovery failed:", err);
+        alert("Error during recovery: " + err.message);
         const btn = document.getElementById("forceRecoverBtn");
-        btn.textContent = "데이터 강제 복구 다시 시도";
-        btn.style.background = "#d71920";
-        btn.disabled = false;
+        btn.textContent = "Recover Data";
+        btn.style.pointerEvents = "auto";
+        btn.style.opacity = "1";
       }
     }
 
-    // =========================================================
-    // 🔥 데이터 실시간 동기화 (컬렉션 단위로 가져오기) 🔥
-    // =========================================================
     let unsub = null;
     function listenToCloud() {
       if (!isCloudConnected) return;
       if (unsub) unsub();
       
-      // 현재 차원(a 또는 e)에 맞는 개별 문서(컬렉션)들을 감시
       const collectionName = `archive_${currentRealm}`;
       
       unsub = onSnapshot(collection(db, collectionName), (snapshot) => {
@@ -468,7 +486,6 @@
           projects.push(docSnap.data());
         });
 
-        // 최신 생성순(createdAt)으로 정렬
         projects.sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0));
 
         if (currentRealm === 'a') archProjects = projects;
@@ -534,7 +551,7 @@
       currentRealm = currentRealm === 'a' ? 'e' : 'a';
       document.getElementById("searchInput").value = ""; 
       updateRealmUI();
-      listenToCloud(); // 차원을 바꿀 때 해당 차원의 데이터베이스로 연결 변경
+      listenToCloud(); 
     });
 
     document.addEventListener("paste", e => {
@@ -712,7 +729,6 @@
     document.getElementById("btnPrev").addEventListener("click", () => { if(currentSlideIndex > 0) { currentSlideIndex--; updateSliderUI(); } });
     document.getElementById("btnNext").addEventListener("click", () => { if(currentSlideIndex < galleryImages.length - 1) { currentSlideIndex++; updateSliderUI(); } });
 
-    // 🔥 슬라이드 개별 삭제 시 (해당 독립 문서만 업데이트)
     document.getElementById("deleteCurrentImage").addEventListener("click", async () => {
       if(currentSlideIndex === 0 || !activeProject) return; 
       if(confirm("현재 보고 있는 슬라이드 이미지를 삭제할까요?")) {
@@ -744,7 +760,6 @@
       editProjectModal.classList.add("is-open");
     });
 
-    // 🔥 프로젝트 정보 수정 및 다중 이미지 업로드 (개별 문서만 덮어쓰기)
     document.getElementById("editProjectForm").addEventListener("submit", async e => {
       e.preventDefault();
       if(!activeProject) return;
@@ -828,7 +843,6 @@
                   <span class="delete-project-btn">✕</span>
                 `;
                 
-                // 🔥 프로젝트 삭제 시 (해당 독립 문서만 완벽하게 삭제)
                 li.querySelector(".delete-project-btn").addEventListener("click", async e => {
                   e.stopPropagation(); 
                   if(confirm(`삭제할까요?`)) { 
@@ -843,7 +857,6 @@
               }); 
     }
     
-    // 🔥 새 프로젝트 생성 시 (독립된 새 문서로 파이어베이스 컬렉션에 밀어넣기)
     document.getElementById("projectForm").addEventListener("submit", async e => {
       e.preventDefault();
       const submitBtn = e.target.querySelector(".submit-project");
@@ -867,7 +880,7 @@
           desc: document.getElementById("addInput5").value.trim(),
           photo: photoUrl, 
           items: [],
-          createdAt: Date.now() // 최신 생성순 정렬을 위한 타임스탬프
+          createdAt: Date.now() 
         };
         
         await setDoc(doc(db, `archive_${currentRealm}`, newId), newDoc);
@@ -906,7 +919,6 @@
       r.readAsDataURL(f); 
     });
 
-    // 시작 시 UI 세팅 및 리스너 연결
     updateRealmUI();
     listenToCloud(); 
   </script>

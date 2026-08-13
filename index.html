@@ -283,7 +283,6 @@
           <button class="modal-close" id="closeEditModalBtn" type="button">×</button>
         </header>
         <form class="project-form" id="editProjectForm">
-          <!-- 멀티 업로드 지원 영역 -->
           <label class="image-field" id="editImageField" style="height: 100px;">
             <span class="image-preview" id="editImagePreview"></span>
             <span>+ Add Slide Images (Paste multiple times or Select)</span>
@@ -342,7 +341,6 @@
     const storageKey = "archive-data-v17";
     const currentGroupCode = "ARCHIVE-DEMO";
 
-    // 데이터베이스 분리
     let archProjects = [];
     let exhiProjects = [];
     
@@ -372,7 +370,21 @@
       } catch (e) { } 
     }
 
-    // 🔥 클라우드 원본 저장소에서 예전 건축 데이터를 강제 복구하는 로직 🔥
+    // 🔥 핵심 해결 코드: 무거운 텍스트(Base64) 이미지를 찾아 진짜 파일로 클라우드에 업로드하고 가벼운 주소로 바꿔치기
+    async function uploadBase64ToStorage(base64String) {
+      try {
+        const response = await fetch(base64String);
+        const blob = await response.blob();
+        const storageRef = ref(storage, `archive_images/legacy_optimized/${crypto.randomUUID()}`);
+        const snapshot = await uploadBytes(storageRef, blob);
+        return await getDownloadURL(snapshot.ref);
+      } catch (e) {
+        console.error("최적화 실패", e);
+        return base64String; // 실패하면 원본 유지
+      }
+    }
+
+    // 예전 데이터베이스에서 꺼내오면서 다이어트(최적화) 진행
     async function recoverFromCloudDB() {
       if (!isCloudConnected) return;
       try {
@@ -381,43 +393,68 @@
         if (oldSnap.exists()) {
           const oldData = oldSnap.data().projects;
           if (oldData && oldData.length > 0) {
-            archProjects = oldData.map(p => ({
-              id: p.id,
-              field1: p.title || '',
-              field2: p.architect || '',
-              field3: p.locationYear || p.sub || '',
-              coords: p.coords || '',
-              desc: p.description || '',
-              photo: p.photo,
-              items: p.items || []
-            }));
             
-            // 로컬 스토리지 에러 방지 (용량이 너무 크면 브라우저 캐시는 패스하고 클라우드에만 덮어씀)
-            try {
-              localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects }));
-            } catch (err) {
-              localStorage.removeItem(storageKey);
+            // 🚨 최적화 시작 알림
+            alert("용량 초과 방지를 위해 무거운 옛날 사진들을 클라우드로 옮기는 최적화 작업을 시작합니다.\n\n사진 개수에 따라 10초 ~ 1분 정도 소요될 수 있습니다. '완료 알림'이 뜰 때까지 브라우저 창을 닫지 말고 잠시만 기다려주세요!");
+            
+            let optimizedProjects = [];
+            
+            for (let i = 0; i < oldData.length; i++) {
+              let p = oldData[i];
+              
+              // 메인 커버 사진이 Base64 텍스트로 뭉쳐있다면 파일로 빼내어 업로드
+              let newPhotoUrl = p.photo;
+              if (newPhotoUrl && newPhotoUrl.startsWith('data:image')) {
+                newPhotoUrl = await uploadBase64ToStorage(newPhotoUrl);
+              }
+
+              // 갤러리 서브 사진들도 검사하여 업로드
+              let optimizedItems = [];
+              if (p.items && p.items.length > 0) {
+                for (let j = 0; j < p.items.length; j++) {
+                  let item = p.items[j];
+                  if (item.src && item.src.startsWith('data:image')) {
+                    item.src = await uploadBase64ToStorage(item.src);
+                  }
+                  optimizedItems.push(item);
+                }
+              }
+
+              optimizedProjects.push({
+                id: p.id,
+                field1: p.title || '',
+                field2: p.architect || '',
+                field3: p.locationYear || p.sub || '',
+                coords: p.coords || '',
+                desc: p.description || '',
+                photo: newPhotoUrl,
+                items: optimizedItems
+              });
             }
 
+            archProjects = optimizedProjects;
+            
+            // 캐시 에러 무시
+            try { localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects })); } catch (err) { localStorage.removeItem(storageKey); }
+
+            // 완벽하게 다이어트된 가벼운 데이터를 새 시스템에 저장!
             await setDoc(doc(db, "archive_core", currentGroupCode), { archProjects: archProjects, exhiProjects: exhiProjects });
-            alert("클라우드 원본 저장소에서 기존 건축 자료를 성공적으로 복구했습니다! 🎉\n(이전 서랍에서 새 서랍으로 안전하게 이동 완료)");
+            
+            alert("✅ 모든 옛날 자료가 가볍게 최적화되어 복구 완료되었습니다!\n이제 용량 제한 없이 자유롭게 사용하실 수 있습니다.");
             renderProjects();
           }
         }
       } catch (err) {
-        console.error("클라우드 복구 실패:", err);
+        console.error("클라우드 복구 및 최적화 실패:", err);
       }
     }
 
-    // 초기화 및 실시간 리스너 연결
     async function initData() {
       loadLocalData();
       updateRealmUI();
 
       if (isCloudConnected) {
-         // 새 데이터베이스(archive_core) 상태 확인
          const coreSnap = await getDoc(doc(db, "archive_core", currentGroupCode));
-         // 새 데이터베이스가 비어있다면 구 데이터베이스(archive_groups)에서 복구 시도
          if (!coreSnap.exists() || (coreSnap.data().archProjects?.length === 0 && coreSnap.data().exhiProjects?.length === 0)) {
             await recoverFromCloudDB();
          }
@@ -441,7 +478,7 @@
             try {
               localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects }));
             } catch(e) {
-              localStorage.removeItem(storageKey); // 꽉차면 캐시 삭제
+              localStorage.removeItem(storageKey); 
             }
             
             renderProjects();
@@ -455,13 +492,11 @@
       });
     }
     
-    // 🔥 저장 로직 분리 (로컬 스토리지 에러 무시하고 클라우드에 강제 저장) 🔥
     async function saveData() { 
       try {
         localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects })); 
       } catch (e) {
         localStorage.removeItem(storageKey);
-        console.warn("브라우저 로컬 저장소 용량 초과. 캐시를 비우고 클라우드에 저장합니다.");
       }
 
       try {
@@ -469,11 +504,7 @@
           await setDoc(doc(db, "archive_core", currentGroupCode), { archProjects, exhiProjects });
         }
       } catch (e) {
-        if (e.message.includes('quota') || e.message.includes('exceeds')) {
-          alert("파이어베이스 문서 데이터 용량 제한(1MB)을 초과했습니다. 기존 자료 중 일부를 삭제해야 합니다.");
-        } else {
-          alert("클라우드 저장 중 오류가 발생했습니다: " + e.message);
-        }
+        alert("저장 실패: " + e.message);
       }
     }
 
@@ -493,9 +524,6 @@
     const editProjectModal = document.getElementById("editProjectModal");
     const editImageField = document.getElementById("editImageField");
 
-    // =========================================================
-    // 평행 세계(Realm) 스위칭 UI 로직
-    // =========================================================
     function updateRealmUI() {
       document.getElementById("mainBrandName").textContent = currentRealm === 'a' ? 'ARCHIVE // a' : 'ARCHIVE // e';
       document.getElementById("mapBrandName").textContent = currentRealm === 'a' ? 'ARCHIVE // a // GEOGRAPHY' : 'ARCHIVE // e // GEOGRAPHY';

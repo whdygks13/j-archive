@@ -191,12 +191,12 @@
       <div class="search-row">
         <label class="search"><input id="searchInput" type="search" placeholder="Search..."></label>
         
-        <!-- 🔥 여기에 임시 복구 버튼 추가! 🔥 -->
+        <!-- 🔥 임시 복구 버튼 (개별 문서 저장 방식 적용) 🔥 -->
         <button id="forceRecoverBtn" type="button">데이터 강제 복구</button>
         
         <button class="add-project" id="addProject" type="button">Add Project</button>
         <div class="sync-status" id="syncStatus">
-          <span class="sync-dot" id="syncDot"></span> <span id="syncText">Cloud Storage Sync</span>
+          <span class="sync-dot" id="syncDot"></span> <span id="syncText">Cloud Collection Sync</span>
         </div>
       </div>
     </header>
@@ -312,8 +312,9 @@
   </main>
 
   <script type="module">
+    // 🔥 Firebase 개별 문서 저장용 모듈 추가 (collection, deleteDoc 등)
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
     const firebaseConfig = {
@@ -335,7 +336,6 @@
       storage = getStorage(app);
       isCloudConnected = true;
       document.getElementById("syncDot").classList.add("is-online");
-      document.getElementById("syncText").textContent = "Cloud Storage Sync";
     } catch (e) {
       console.error("Firebase Error:", e);
     }
@@ -345,16 +345,14 @@
     document.addEventListener("mousedown", () => cursorDot.classList.add("is-pressed"));
     document.addEventListener("mouseup", () => cursorDot.classList.remove("is-pressed"));
 
-    const storageKey = "archive-data-v17";
-    const currentGroupCode = "ARCHIVE-DEMO";
-
-    let archProjects = [];
-    let exhiProjects = [];
-    
+    // 현재 접속 차원 ('a': Architecture, 'e': Exhibition)
     let currentRealm = 'a'; 
     let activeProject = null;
-    let isInteracting = false; 
     let openedFromMap = false; 
+
+    // 개별 저장(Collection) 방식으로 변경되면서 데이터를 담아둘 로컬 배열
+    let archProjects = [];
+    let exhiProjects = [];
 
     let currentSlideIndex = 0;
     let galleryImages = [];
@@ -366,17 +364,6 @@
 
     function getCurrentData() { return currentRealm === 'a' ? archProjects : exhiProjects; }
 
-    function loadLocalData() { 
-      try { 
-        const saved = localStorage.getItem(storageKey); 
-        if(saved) {
-          const parsed = JSON.parse(saved);
-          archProjects = parsed.archProjects || [];
-          exhiProjects = parsed.exhiProjects || [];
-        }
-      } catch (e) { } 
-    }
-
     async function uploadBase64ToStorage(base64String) {
       try {
         const response = await fetch(base64String);
@@ -385,35 +372,32 @@
         const snapshot = await uploadBytes(storageRef, blob);
         return await getDownloadURL(snapshot.ref);
       } catch (e) {
-        console.error("최적화 실패", e);
         return base64String; 
       }
     }
 
-    // 🔥 수동 강제 복구 버튼 이벤트 연결
+    // 🔥 수동 강제 복구 (이제 개별 문서 컬렉션 방식으로 저장합니다) 🔥
     document.getElementById("forceRecoverBtn").addEventListener("click", async () => {
-      if(!confirm("기존 아카이브 자료들을 클라우드에서 불러와 최적화를 진행할까요?\n\n(완료될 때까지 창을 닫지 말아주세요!)")) return;
+      if(!confirm("기존 아카이브 자료들을 클라우드에서 불러와 영구적인 '개별 문서' 시스템으로 마이그레이션 합니다.\n\n(완료될 때까지 창을 닫지 말아주세요!)")) return;
       await recoverFromCloudDB();
     });
 
     async function recoverFromCloudDB() {
       if (!isCloudConnected) return alert("클라우드에 연결되지 않았습니다.");
       try {
-        const oldRef = doc(db, "archive_groups", currentGroupCode);
+        const oldRef = doc(db, "archive_groups", "ARCHIVE-DEMO");
         const oldSnap = await getDoc(oldRef);
+        
         if (oldSnap.exists()) {
           const oldData = oldSnap.data().projects;
           if (oldData && oldData.length > 0) {
             
-            // 시각적 피드백
             const btn = document.getElementById("forceRecoverBtn");
-            btn.textContent = "최적화 진행중... (대기)";
+            btn.textContent = "시스템 업그레이드 중... (대기)";
             btn.style.background = "#999";
             btn.disabled = true;
 
-            alert("용량 초과 방지를 위해 무거운 옛날 사진들을 클라우드로 옮기는 최적화 작업을 시작합니다.\n\n사진 개수에 따라 10초 ~ 1분 정도 소요될 수 있습니다. '완료 알림'이 뜰 때까지 브라우저 창을 닫지 말고 잠시만 기다려주세요!");
-            
-            let optimizedProjects = [];
+            alert("1MB 용량 한계를 없애기 위해 데이터를 '개별 문서'로 분리 저장하는 업그레이드 작업을 시작합니다.\n\n각각의 파일을 안전하게 저장하므로 시간이 조금 걸립니다. 완료 알림이 뜰 때까지 기다려주세요!");
             
             for (let i = 0; i < oldData.length; i++) {
               let p = oldData[i];
@@ -434,7 +418,7 @@
                 }
               }
 
-              optimizedProjects.push({
+              const newDoc = {
                 id: p.id,
                 field1: p.title || '',
                 field2: p.architect || '',
@@ -442,90 +426,65 @@
                 coords: p.coords || '',
                 desc: p.description || '',
                 photo: newPhotoUrl,
-                items: optimizedItems
-              });
+                items: optimizedItems,
+                createdAt: Date.now() - (i * 1000) // 순서 유지를 위한 가짜 타임스탬프
+              };
+
+              // 🔥 1MB 한계를 없애는 핵심: 한 바구니가 아니라 "archive_a"라는 컬렉션 안에 개별 ID로 각각 저장!
+              await setDoc(doc(db, "archive_a", p.id), newDoc);
             }
 
-            // 테스트로 추가했던 프로젝트가 있다면 뒤로 밀리지 않게 기존 데이터와 합치기
-            const existingIds = new Set(archProjects.map(p => p.id));
-            const newToAdd = optimizedProjects.filter(p => !existingIds.has(p.id));
-            archProjects = [...newToAdd, ...archProjects];
-            
-            try { localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects })); } catch (err) { localStorage.removeItem(storageKey); }
-
-            await setDoc(doc(db, "archive_core", currentGroupCode), { archProjects: archProjects, exhiProjects: exhiProjects });
-            
-            btn.textContent = "데이터 강제 복구";
-            btn.style.background = "#d71920";
-            btn.disabled = false;
-
-            alert("✅ 모든 옛날 자료가 가볍게 최적화되어 복구 완료되었습니다!\n이제 용량 제한 없이 자유롭게 사용하실 수 있습니다.");
-            renderProjects();
+            btn.style.display = "none"; // 복구가 끝나면 버튼은 완전히 숨김 처리
+            alert("✅ 시스템 업그레이드 및 모든 데이터 복구 완벽하게 성공!\n이제 무제한으로 프로젝트를 추가하실 수 있습니다.");
           } else {
             alert("이전 저장소에 복구할 데이터가 없습니다.");
           }
         } else {
-          alert("이전 저장소(archive_groups) 문서가 존재하지 않습니다.");
+          alert("이전 저장소 문서가 존재하지 않습니다.");
         }
       } catch (err) {
-        console.error("클라우드 복구 및 최적화 실패:", err);
-        alert("복구 중 에러가 발생했습니다: " + err.message);
+        alert("업그레이드 중 에러가 발생했습니다: " + err.message);
         const btn = document.getElementById("forceRecoverBtn");
-        btn.textContent = "데이터 강제 복구";
+        btn.textContent = "데이터 강제 복구 다시 시도";
         btn.style.background = "#d71920";
         btn.disabled = false;
       }
     }
 
-    async function initData() {
-      loadLocalData();
-      updateRealmUI();
-      listenToCloud();
-      renderProjects();
-    }
-
+    // =========================================================
+    // 🔥 데이터 실시간 동기화 (컬렉션 단위로 가져오기) 🔥
+    // =========================================================
     let unsub = null;
     function listenToCloud() {
       if (!isCloudConnected) return;
       if (unsub) unsub();
-      unsub = onSnapshot(doc(db, "archive_core", currentGroupCode), (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (!isInteracting) {
-            archProjects = data.archProjects || [];
-            exhiProjects = data.exhiProjects || [];
-            
-            try {
-              localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects }));
-            } catch(e) {
-              localStorage.removeItem(storageKey); 
-            }
-            
-            renderProjects();
-            if (activeProject) {
-              const curData = getCurrentData();
-              const updatedActive = curData.find(p => p.id === activeProject.id);
-              if (updatedActive) { activeProject = updatedActive; renderGallery(activeProject); }
-            }
+      
+      // 현재 차원(a 또는 e)에 맞는 개별 문서(컬렉션)들을 감시
+      const collectionName = `archive_${currentRealm}`;
+      
+      unsub = onSnapshot(collection(db, collectionName), (snapshot) => {
+        const projects = [];
+        snapshot.forEach(docSnap => {
+          projects.push(docSnap.data());
+        });
+
+        // 최신 생성순(createdAt)으로 정렬
+        projects.sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0));
+
+        if (currentRealm === 'a') archProjects = projects;
+        else exhiProjects = projects;
+
+        renderProjects();
+        
+        if (activeProject) {
+          const curData = getCurrentData();
+          const updatedActive = curData.find(p => p.id === activeProject.id);
+          if (updatedActive) { 
+            activeProject = updatedActive; 
+            renderGallery(activeProject); 
           }
         }
       });
-    }
-    
-    async function saveData() { 
-      try {
-        localStorage.setItem(storageKey, JSON.stringify({ archProjects, exhiProjects })); 
-      } catch (e) {
-        localStorage.removeItem(storageKey);
-      }
-
-      try {
-        if (isCloudConnected) {
-          await setDoc(doc(db, "archive_core", currentGroupCode), { archProjects, exhiProjects });
-        }
-      } catch (e) {
-        alert("저장 실패: " + e.message);
-      }
     }
 
     async function uploadFileToStorage(file) {
@@ -575,7 +534,7 @@
       currentRealm = currentRealm === 'a' ? 'e' : 'a';
       document.getElementById("searchInput").value = ""; 
       updateRealmUI();
-      renderProjects();
+      listenToCloud(); // 차원을 바꿀 때 해당 차원의 데이터베이스로 연결 변경
     });
 
     document.addEventListener("paste", e => {
@@ -753,13 +712,16 @@
     document.getElementById("btnPrev").addEventListener("click", () => { if(currentSlideIndex > 0) { currentSlideIndex--; updateSliderUI(); } });
     document.getElementById("btnNext").addEventListener("click", () => { if(currentSlideIndex < galleryImages.length - 1) { currentSlideIndex++; updateSliderUI(); } });
 
-    document.getElementById("deleteCurrentImage").addEventListener("click", () => {
+    // 🔥 슬라이드 개별 삭제 시 (해당 독립 문서만 업데이트)
+    document.getElementById("deleteCurrentImage").addEventListener("click", async () => {
       if(currentSlideIndex === 0 || !activeProject) return; 
       if(confirm("현재 보고 있는 슬라이드 이미지를 삭제할까요?")) {
         const data = galleryImages[currentSlideIndex];
         if(!data.isCover && data.itemIndex !== undefined) {
           activeProject.items.splice(data.itemIndex, 1);
-          saveData();
+          
+          await setDoc(doc(db, `archive_${currentRealm}`, activeProject.id), activeProject);
+          
           currentSlideIndex = Math.max(0, currentSlideIndex - 1);
           renderGallery(activeProject);
         }
@@ -782,6 +744,7 @@
       editProjectModal.classList.add("is-open");
     });
 
+    // 🔥 프로젝트 정보 수정 및 다중 이미지 업로드 (개별 문서만 덮어쓰기)
     document.getElementById("editProjectForm").addEventListener("submit", async e => {
       e.preventDefault();
       if(!activeProject) return;
@@ -807,11 +770,12 @@
           currentSlideIndex = activeProject.items.filter(i => i.type==="photo").length;
         }
 
-        await saveData();
+        await setDoc(doc(db, `archive_${currentRealm}`, activeProject.id), activeProject);
+        
         renderGallery(activeProject);
         editProjectModal.classList.remove("is-open");
       } catch (err) {
-        alert("저장 중 오류가 발생했습니다.");
+        alert("저장 중 오류가 발생했습니다: " + err.message);
       } finally {
         submitBtn.textContent = originText;
         submitBtn.disabled = false;
@@ -863,14 +827,15 @@
                   </a>
                   <span class="delete-project-btn">✕</span>
                 `;
-                li.querySelector(".delete-project-btn").addEventListener("click", e => {
+                
+                // 🔥 프로젝트 삭제 시 (해당 독립 문서만 완벽하게 삭제)
+                li.querySelector(".delete-project-btn").addEventListener("click", async e => {
                   e.stopPropagation(); 
                   if(confirm(`삭제할까요?`)) { 
-                    curData.splice(i, 1); 
-                    saveData(); 
-                    renderProjects(); 
+                    await deleteDoc(doc(db, `archive_${currentRealm}`, p.id));
                   }
                 });
+                
                 li.querySelector(".picture").addEventListener("click", () => { openedFromMap = false; openGallery(p); });
                 li.querySelector(".caption").addEventListener("click", () => { openedFromMap = false; openGallery(p); });
                 
@@ -878,6 +843,7 @@
               }); 
     }
     
+    // 🔥 새 프로젝트 생성 시 (독립된 새 문서로 파이어베이스 컬렉션에 밀어넣기)
     document.getElementById("projectForm").addEventListener("submit", async e => {
       e.preventDefault();
       const submitBtn = e.target.querySelector(".submit-project");
@@ -891,23 +857,24 @@
           photoUrl = await uploadFileToStorage(selectedMainImageFile);
         }
 
-        const curData = getCurrentData();
-        curData.unshift({ 
-          id: crypto.randomUUID(), 
+        const newId = crypto.randomUUID();
+        const newDoc = { 
+          id: newId, 
           field1: document.getElementById("addInput1").value.trim(), 
           field2: document.getElementById("addInput2").value.trim(), 
           field3: document.getElementById("addInput3").value.trim(),
           coords: document.getElementById("addInput4").value.trim(),
           desc: document.getElementById("addInput5").value.trim(),
           photo: photoUrl, 
-          items: [] 
-        });
+          items: [],
+          createdAt: Date.now() // 최신 생성순 정렬을 위한 타임스탬프
+        };
         
-        await saveData(); 
-        renderProjects(); 
+        await setDoc(doc(db, `archive_${currentRealm}`, newId), newDoc);
+        
         projectModal.classList.remove("is-open");
       } catch (err) {
-        alert("업로드 중 오류가 발생했습니다.");
+        alert("업로드 중 오류가 발생했습니다: " + err.message);
       } finally {
         submitBtn.textContent = originText;
         submitBtn.disabled = false;
@@ -939,7 +906,9 @@
       r.readAsDataURL(f); 
     });
 
-    initData();
+    // 시작 시 UI 세팅 및 리스너 연결
+    updateRealmUI();
+    listenToCloud(); 
   </script>
 </body>
 </html>

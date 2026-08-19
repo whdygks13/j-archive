@@ -55,7 +55,6 @@
     .add-project { font-size: 9pt; color: #555553; border: 1px solid #ddd; padding: 4px 10px; border-radius: 2px; transition: background 0.2s; cursor: pointer; }
     .add-project:hover { background: #f9f9f9; }
     
-    /* 🔥 통일된 디자인의 복구 버튼 🔥 */
     #forceRecoverBtn { font-size: 9pt; color: #555553; border: 1px solid #ddd; padding: 4px 10px; border-radius: 2px; transition: background 0.2s; background: transparent; cursor: pointer; }
     #forceRecoverBtn:hover { background: #f9f9f9; }
 
@@ -181,10 +180,23 @@
     .submit-project { background: #555553; color: #fff; border-color: #555553 !important; }
     .submit-project:hover { background: #333; }
     .submit-project:disabled { background: #999; border-color: #999 !important; cursor: not-allowed !important; }
+
+    /* =========================================================
+       🔥 관리자(Admin) 전용 숨김 로직 🔥
+       URL에 ?key=112233 이 없으면 모든 관리자 기능이 아예 숨겨집니다.
+       ========================================================= */
+    body:not(.is-admin) #addProject,
+    body:not(.is-admin) #forceRecoverBtn,
+    body:not(.is-admin) #syncStatus,
+    body:not(.is-admin) .delete-project-btn,
+    body:not(.is-admin) .gallery-tools {
+      display: none !important;
+    }
   </style>
 </head>
 <body class="main">
   <main class="app">
+    <!-- Topbar -->
     <header class="topbar eng">
       <div class="brand">
         <div class="brand-name" id="mainBrandName">ARCHIVE // a</div>
@@ -192,9 +204,7 @@
       <div class="search-row">
         <label class="search"><input id="searchInput" type="search" placeholder="Search..."></label>
         
-        <!-- 🔥 스타일이 통일되고 영어로 변경된 복구 버튼 -->
         <button id="forceRecoverBtn" type="button">Recover Data</button>
-        
         <button class="add-project" id="addProject" type="button">Add Project</button>
         <div class="sync-status" id="syncStatus">
           <span class="sync-dot" id="syncDot"></span> <span id="syncText">Cloud Collection Sync</span>
@@ -202,6 +212,7 @@
       </div>
     </header>
 
+    <!-- Main Image List -->
     <div id="wrapper">
       <ul id="main_image_list" class="eng">
         <li class="gateway" id="gatewayMap"><a href="javascript:void(0);" title="Open Map">·</a></li>
@@ -213,6 +224,7 @@
       </div>
     </div>
 
+    <!-- World Map View -->
     <section class="map-view" id="mapView" aria-label="world map">
       <header class="map-header eng">
         <div class="brand-name" id="mapBrandName">ARCHIVE // a // GEOGRAPHY</div>
@@ -221,6 +233,7 @@
       <div id="mapContainer"></div>
     </section>
 
+    <!-- Internal Project Gallery -->
     <section class="project-view" id="galleryView" aria-label="project gallery">
       <div class="inner_wrapper">
         <div class="btn_go_main_wrapper">
@@ -310,6 +323,12 @@
   </main>
 
   <script type="module">
+    // 🔥 비밀 주소 확인 로직 (가장 먼저 실행됩니다) 🔥
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('key') === '112233') {
+      document.body.classList.add('is-admin');
+    }
+
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
@@ -371,7 +390,6 @@
       }
     }
 
-    // 🔥 수동 강제 복구 (1번 창고와 2번 창고를 모두 뒤져서 최신 데이터 및 전시 데이터까지 완벽하게 이전)
     document.getElementById("forceRecoverBtn").addEventListener("click", async () => {
       if(!confirm("Recover and optimize data from all previous storages? (Please keep the window open until completed)")) return;
       await recoverFromAllCloudDBs();
@@ -390,7 +408,7 @@
         let allArch = [];
         let allExhi = [];
 
-        // 1. 오래된 창고 (archive_groups) 긁어오기
+        // 1. 오래된 창고
         const oldRef = doc(db, "archive_groups", "ARCHIVE-DEMO");
         const oldSnap = await getDoc(oldRef);
         if (oldSnap.exists()) {
@@ -398,7 +416,7 @@
           allArch = [...allArch, ...oldData];
         }
 
-        // 2. 과도기 창고 (archive_core) 긁어오기
+        // 2. 과도기 창고
         const coreRef = doc(db, "archive_core", "ARCHIVE-DEMO");
         const coreSnap = await getDoc(coreRef);
         if (coreSnap.exists()) {
@@ -407,7 +425,6 @@
           if (coreData.exhiProjects) allExhi = [...allExhi, ...coreData.exhiProjects];
         }
 
-        // 3. 중복 제거 (같은 ID를 가진 데이터는 덮어씌워서 1개만 유지)
         const uniqueArch = Array.from(new Map(allArch.map(item => [item.id, item])).values());
         const uniqueExhi = Array.from(new Map(allExhi.map(item => [item.id, item])).values());
 
@@ -419,7 +436,6 @@
           return;
         }
 
-        // 데이터 최적화 함수 (Base64 이미지 -> URL 변환)
         const optimizeProject = async (p, realm, index) => {
           let newPhotoUrl = p.photo;
           if (newPhotoUrl && newPhotoUrl.startsWith('data:image')) {
@@ -448,13 +464,11 @@
           };
         };
 
-        // 건축물 컬렉션 업데이트
         for (let i = 0; i < uniqueArch.length; i++) {
           const optimized = await optimizeProject(uniqueArch[i], 'a', i);
           await setDoc(doc(db, "archive_a", optimized.id), optimized);
         }
 
-        // 전시 컬렉션 업데이트
         for (let i = 0; i < uniqueExhi.length; i++) {
           const optimized = await optimizeProject(uniqueExhi[i], 'e', i);
           await setDoc(doc(db, "archive_e", optimized.id), optimized);
@@ -555,6 +569,7 @@
     });
 
     document.addEventListener("paste", e => {
+      if (!document.body.classList.contains('is-admin')) return; // 관리자 아니면 차단
       if (e.target.tagName.toLowerCase() === 'textarea' && !editProjectModal.classList.contains("is-open")) return; 
       if (e.target.tagName.toLowerCase() === 'input' && e.target.type === 'text') return; 
 

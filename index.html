@@ -100,6 +100,9 @@
     .map-header { height: 60px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f0; background: rgba(255,255,255,0.95); z-index: 10; }
     #mapContainer { flex: 1; width: 100%; background: #fbfbfb; }
 
+    /* 🔥 무료 지도(OpenStreetMap)를 아카이브의 분위기에 맞게 무채색(흑백) 필터로 변환합니다 🔥 */
+    .leaflet-tile { filter: grayscale(100%) opacity(0.6); }
+
     .custom-crosshair-marker { background: transparent; border: none; font-size: 18px; font-weight: normal; color: #111; display: flex; align-items: center; justify-content: center; user-select: none; text-shadow: 0 0 2px #fff; }
 
     .leaflet-popup-content-wrapper { background: #fff; border-radius: 0px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #eee; padding: 4px; pointer-events: none; }
@@ -323,7 +326,7 @@
   </main>
 
   <script type="module">
-    // 🔥 비밀 주소 확인 로직 (가장 먼저 실행됩니다) 🔥
+    // 🔥 비밀 주소 확인 로직 🔥
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('key') === '112233') {
       document.body.classList.add('is-admin');
@@ -408,7 +411,6 @@
         let allArch = [];
         let allExhi = [];
 
-        // 1. 오래된 창고
         const oldRef = doc(db, "archive_groups", "ARCHIVE-DEMO");
         const oldSnap = await getDoc(oldRef);
         if (oldSnap.exists()) {
@@ -416,7 +418,6 @@
           allArch = [...allArch, ...oldData];
         }
 
-        // 2. 과도기 창고
         const coreRef = doc(db, "archive_core", "ARCHIVE-DEMO");
         const coreSnap = await getDoc(coreRef);
         if (coreSnap.exists()) {
@@ -569,7 +570,7 @@
     });
 
     document.addEventListener("paste", e => {
-      if (!document.body.classList.contains('is-admin')) return; // 관리자 아니면 차단
+      if (!document.body.classList.contains('is-admin')) return; 
       if (e.target.tagName.toLowerCase() === 'textarea' && !editProjectModal.classList.contains("is-open")) return; 
       if (e.target.tagName.toLowerCase() === 'input' && e.target.type === 'text') return; 
 
@@ -609,8 +610,9 @@
       setTimeout(() => {
         if (!map) {
           map = L.map('mapContainer', { zoomControl: false }).setView([35.845, 128.625], 6);
-          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19, subdomains: 'abcd'
+          // 🔥 CARTO 지도를 대체하여 평생 무료로 쓸 수 있는 오픈스트리트맵(OSM)으로 변경 🔥
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
           }).addTo(map);
         } else {
           map.invalidateSize();

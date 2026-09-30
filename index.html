@@ -100,7 +100,7 @@
     .map-header { height: 60px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f0; background: rgba(255,255,255,0.95); z-index: 10; }
     #mapContainer { flex: 1; width: 100%; background: #fbfbfb; }
 
-    /* 🔥 무료 지도(OpenStreetMap)를 아카이브의 분위기에 맞게 무채색(흑백) 필터로 변환합니다 🔥 */
+    /* 오픈스트리트맵(OpenStreetMap) 무채색 필터 */
     .leaflet-tile { filter: grayscale(100%) opacity(0.6); }
 
     .custom-crosshair-marker { background: transparent; border: none; font-size: 18px; font-weight: normal; color: #111; display: flex; align-items: center; justify-content: center; user-select: none; text-shadow: 0 0 2px #fff; }
@@ -186,10 +186,10 @@
 
     /* =========================================================
        🔥 관리자(Admin) 전용 숨김 로직 🔥
-       URL에 ?key=112233 이 없으면 모든 관리자 기능이 아예 숨겨집니다.
+       URL에 ?key=112233 이 없으면 편집 관련 기능이 아예 숨겨집니다.
+       (단, Recover Data 버튼은 일반 페이지에서도 보이도록 숨김 대상에서 제외했습니다!)
        ========================================================= */
     body:not(.is-admin) #addProject,
-    body:not(.is-admin) #forceRecoverBtn,
     body:not(.is-admin) #syncStatus,
     body:not(.is-admin) .delete-project-btn,
     body:not(.is-admin) .gallery-tools {
@@ -207,7 +207,9 @@
       <div class="search-row">
         <label class="search"><input id="searchInput" type="search" placeholder="Search..."></label>
         
+        <!-- 🔥 누구나 누를 수 있도록 노출된 Recover Data 버튼 -->
         <button id="forceRecoverBtn" type="button">Recover Data</button>
+        
         <button class="add-project" id="addProject" type="button">Add Project</button>
         <div class="sync-status" id="syncStatus">
           <span class="sync-dot" id="syncDot"></span> <span id="syncText">Cloud Collection Sync</span>
@@ -610,7 +612,6 @@
       setTimeout(() => {
         if (!map) {
           map = L.map('mapContainer', { zoomControl: false }).setView([35.845, 128.625], 6);
-          // 🔥 CARTO 지도를 대체하여 평생 무료로 쓸 수 있는 오픈스트리트맵(OSM)으로 변경 🔥
           L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19
           }).addTo(map);
